@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html" class="active">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>PCE Mini Internals</h1>
+    <p class="page-desc">
+      A comprehensive guide to the internal data formats and architecture of the
+      PC Engine / TurboGrafx-16 Mini console, powered by M2's <code>m2engage</code> emulator.
+    </p>
+
+    <h2>What is this?</h2>
+    <p>
+      The PC Engine Mini (Japan) / TurboGrafx-16 Mini (US) / CoreGrafx Mini (EU) is a miniature
+      retro console released in 2020. It runs an ARM-based SoC with a custom emulator called
+      <code>m2engage</code>, built by M2 (the renowned Japanese developer known for pixel-perfect ports).
+    </p>
+    <p>
+      This documentation covers the internal file formats used by m2engage to define game lists,
+      emulator settings, cover art animations, and more. The goal is to understand these formats
+      well enough to build custom game packs.
+    </p>
+
+    <h2>High-Level File Structure</h2>
+    <p>
+      All game data lives under two directories, relative to the m2engage working directory:
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">m2engage working directory</span>
+  |- <span class="highlight">system/</span>                    Platform-wide resources
+  |   |- config/                 System config PSBs
+  |   |- script/                 Squirrel .nut scripts
+  |   |- motion/                 Shared motion/animation PSBs
+  |   \- sound/                  Audio assets
+  |
+  |- <span class="highlight">040/</span>                       Title pack (dev_id=40 = PCE)
+  |   |- <span class="hl-green">config/</span>                Game list &amp; emulator config
+  |   |   |- <span class="hl-purple">title_mode_top.psb.m</span>    Game list (200 items)
+  |   |   |- <span class="hl-purple">title_prof.psb.m</span>        ROM &amp; emulator settings
+  |   |   |- title_session.psb.m     Session/save config
+  |   |   \- ...
+  |   |- <span class="hl-green">motion/</span>                Cover art &amp; animations
+  |   |   |- <span class="hl-purple">title_jp_titleselect_jp.psb.m</span>  JP cover sprites
+  |   |   |- <span class="hl-purple">title_jp_titleselect_us.psb.m</span>  US cover sprites
+  |   |   |- bg01.psb.m               Background motion
+  |   |   \- ...
+  |   \- <span class="hl-green">script/</span>                Title-specific script overrides
+  |
+  |- version                     Version file
+  \- shutdown.png                Shutdown image
+    </div>
+
+    <div class="box box-info">
+      <strong>alldata.bin</strong>
+      On the original hardware, all files are packed into <code>alldata.bin</code> with an
+      <code>alldata.psb.m</code> manifest. However, m2engage can also read from extracted
+      directories directly &mdash; extracted folders take priority over alldata.bin.
+    </div>
+
+    <h2>The Four Key Files</h2>
+    <p>
+      To create a custom game pack, you need to generate <strong>four PSB files</strong>.
+      Everything else can be copied from the originals unchanged:
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <h4><span class="badge badge-file">config</span> title_mode_top.psb.m</h4>
+        <p>The master game list. 200 items defining every game slot across JP and US lineups,
+        with sorting indices, display names, and platform metadata.</p>
+      </div>
+      <div class="card">
+        <h4><span class="badge badge-file">config</span> title_prof.psb.m</h4>
+        <p>Per-game ROM and emulator configuration: architecture, ROM filename, country,
+        audio preamp, controller mapping, and more.</p>
+      </div>
+      <div class="card">
+        <h4><span class="badge badge-file">motion</span> title_jp_titleselect_jp.psb.m</h4>
+        <p>JP lineup cover art. Contains 1024&times;1024 sprite sheet textures with icon
+        coordinates and animation frame lists.</p>
+      </div>
+      <div class="card">
+        <h4><span class="badge badge-file">motion</span> title_jp_titleselect_us.psb.m</h4>
+        <p>US lineup cover art. Same format as JP but for the TurboGrafx-16 game lineup.</p>
+      </div>
+    </div>
+
+    <h2>Quick Reference</h2>
+    <table>
+      <tr>
+        <th>Concept</th>
+        <th>Details</th>
+      </tr>
+      <tr>
+        <td>File encryption</td>
+        <td>MZS format: XOR cipher + zstd compression. Key: <code>8!7ZZnJAr/wfc</code></td>
+      </tr>
+      <tr>
+        <td>Config format</td>
+        <td>PSB (PackageSuB) &mdash; M2's proprietary binary format, convertible to/from JSON</td>
+      </tr>
+      <tr>
+        <td>Script engine</td>
+        <td>Squirrel VM (statically linked into m2engage)</td>
+      </tr>
+      <tr>
+        <td>JP game count</td>
+        <td>34 games (<code>titleNum</code>)</td>
+      </tr>
+      <tr>
+        <td>US game count</td>
+        <td>24 games (<code>titleNumTG</code>)</td>
+      </tr>
+      <tr>
+        <td>Items array size</td>
+        <td>Always 200 (50 per section &times; 4 sections)</td>
+      </tr>
+      <tr>
+        <td>Tool</td>
+        <td><code>mzstool.py</code> &mdash; extract/build pipeline for .psb.m files</td>
+      </tr>
+    </table>
+
+    <h2>Documentation Map</h2>
+    <ol>
+      <li><a href="architecture.html"><strong>Architecture</strong></a> &mdash; How m2engage loads and uses these files</li>
+      <li><a href="mzs-format.html"><strong>MZS / PSB Format</strong></a> &mdash; The encryption and binary config format</li>
+      <li><a href="title-mode-top.html"><strong>title_mode_top</strong></a> &mdash; The game list structure (items, sorting, sections)</li>
+      <li><a href="title-prof.html"><strong>title_prof</strong></a> &mdash; Per-game emulator configuration</li>
+      <li><a href="cover-motion.html"><strong>Cover Motion PSBs</strong></a> &mdash; Sprite sheets and animation format</li>
+      <li><a href="tools.html"><strong>Tools</strong></a> &mdash; mzstool and the build pipeline</li>
+      <li><a href="building.html"><strong>Building Game Packs</strong></a> &mdash; Step-by-step guide to creating custom packs</li>
+      <li><a href="squirrel-vm.html"><strong>Squirrel VM &amp; Filesystem</strong></a> &mdash; File I/O, resource loading, and path resolution APIs</li>
+      <li><a href="save-system.html"><strong>Save System</strong></a> &mdash; Backup manager, save states, autosave, and file naming</li>
+      <li><a href="pitfalls.html"><strong>Pitfalls</strong></a> &mdash; Common mistakes and hard-won lessons</li>
+    </ol>
+
+  </main>
+</body>
+</html>

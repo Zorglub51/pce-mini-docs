@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html" class="active">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Architecture</h1>
+    <p class="page-desc">
+      How m2engage loads configuration, runs scripts, and renders the game selection UI.
+    </p>
+
+    <h2>Boot Sequence</h2>
+    <p>
+      When m2engage starts, it goes through a well-defined initialization sequence.
+      Understanding this sequence is critical for debugging custom game packs &mdash;
+      if your files cause a crash, the point of failure tells you which file is broken.
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">m2engage boot sequence</span>
+
+  1. <span class="highlight">Platform check</span>
+     |- Reads /dev/i2c-1 EEPROM for hardware validation
+     |- Accesses /tmp/sunxi_dump (patched path)
+     |- On failure: crash with exit 99 (SIGBUS)
+     \- <span class="hl-dim">No PSB files read yet</span>
+
+  2. <span class="highlight">Native init</span>
+     |- Loads <span class="hl-purple">title_prof.psb.m</span>     <span class="hl-dim">&lt;-- crash here = title_prof is bad</span>
+     |- Reads system_prof.psb
+     \- Initializes Squirrel VM
+
+  3. <span class="hl-green">init_system_1st()</span>           <span class="hl-dim">[Squirrel]</span>
+     |- Reads game versions from title_prof
+     |- Registers all GAME### region tags
+     |- 83 versions loaded (34 JP + 24 US + variants)
+     \- <span class="hl-dim">Prints: "init_system_1st() : start/done"</span>
+
+  4. <span class="hl-green">init_system_preload()</span>       <span class="hl-dim">[Squirrel]</span>
+     |- Loads sound config
+     \- <span class="hl-dim">Prints: "init_system_preload() : start/done"</span>
+
+  5. <span class="hl-green">init_system_create_systemdata()</span>
+     |- Creates backup control
+     |- Sets screen resolution (1280x720)
+     \- <span class="hl-dim">Prints: "dev_name : PceMini"</span>
+
+  6. <span class="hl-green">init_system_autoload()</span>
+     |- Loads save data
+     \- <span class="hl-dim">Prints: "ExecAutoload: ret = 3"</span>
+
+  7. <span class="hl-green">init_system_last()</span>
+     \- Final initialization
+
+  8. <span class="highlight">Logo / Splash screen</span>
+     |- Renders Konami logo, warning screens
+     \- <span class="hl-dim">Audio starts playing here</span>
+
+  9. <span class="highlight">Title select</span>              <span class="hl-dim">(mode_title_select.nut)</span>
+     |- Loads <span class="hl-purple">title_mode_top.psb.m</span>
+     |- Reads titleNum / titleNumTG
+     |- Creates carousel with s_titleNum motion objects
+     |- Loads cover art from <span class="hl-purple">motion PSBs</span>
+     \- <span class="hl-dim">Prints: "s_titleNum = N"</span>
+    </div>
+
+    <div class="box box-warning">
+      <strong>Diagnostic: Where did it crash?</strong>
+      <ul style="margin-top:8px; margin-bottom:0">
+        <li><strong>No SQ output, no sound</strong> &rarr; Crash in step 2 (native init). Check <code>title_prof.psb.m</code></li>
+        <li><strong>SQ output, music, black screen</strong> &rarr; Crash in step 8-9. Check <code>title_mode_top.psb.m</code> or motion PSBs</li>
+        <li><strong>Normal init, s_titleNum printed</strong> &rarr; Issue in carousel/motion. Check sort indices and motion PSBs</li>
+      </ul>
+    </div>
+
+    <h2>Squirrel Script Engine</h2>
+    <p>
+      m2engage uses the <a href="http://squirrel-lang.org/">Squirrel</a> scripting language
+      (statically linked, no external .dll/.so). Scripts control the entire UI flow:
+      menus, transitions, cover art display, game launch, save management.
+    </p>
+
+    <h3>Key Scripts</h3>
+    <table>
+      <tr><th>Script</th><th>Purpose</th></tr>
+      <tr>
+        <td><code>system/script/mode_title_select.nut</code></td>
+        <td>Game selection carousel. Reads <code>title_mode_top.psb</code>, creates motion objects, handles input</td>
+      </tr>
+      <tr>
+        <td><code>system/script/game_content.nut</code></td>
+        <td>Game loading. <code>conv_path()</code> resolves <code>system/</code> vs <code>040/</code> prefixes</td>
+      </tr>
+      <tr>
+        <td><code>system/script/utils.nut</code></td>
+        <td>PSB caching via <code>s_loaded_config</code> table and <code>ResourceCache</code> class</td>
+      </tr>
+    </table>
+
+    <h3>Config Loading</h3>
+    <p>
+      PSB files are loaded by scripts using <code>util_load_config()</code>, which takes
+      a path like <code>"config/title_mode_top.psb"</code>. The <code>conv_path()</code>
+      function prepends either <code>system/</code> or <code>040/</code> depending on
+      the resource type. Configs are cached &mdash; each PSB is loaded only once.
+    </p>
+    <pre><code>// Squirrel: loading a config
+m_config = ::util_load_config( ::conv_path("config/title_mode_top.psb") );
+s_titleNum = m_config["titleNum"];</code></pre>
+
+    <h2>Data Flow: Game Selection</h2>
+
+    <div class="diagram">
+<span class="hl-blue">Game Selection Data Flow</span>
+
+  <span class="hl-purple">title_mode_top.psb</span>
+    |
+    |-- items[0..49]   ──> JP game names, sort order, platform
+    |-- items[50..99]  ──> US game names, sort order, platform
+    |-- items[100..149]──> EN translations of JP games
+    |-- items[150..199]──> EN translations of US games
+    |-- titleNum (34)  ──> Number of JP games
+    \-- titleNumTG (24)──> Number of US games
+              |
+              v
+  <span class="hl-green">mode_title_select.nut</span>
+    |-- Creates s_titleNum Motion objects
+    |-- Each Motion loads from cover motion PSB
+    |-- setVariable("pkg", image_index) selects which cover to show
+    |-- Carousel: 5 visible, wraps via s_titleNum
+    |-- Sort modes use sor_* indices
+              |
+              v
+  <span class="hl-purple">title_jp_titleselect_jp.psb</span>  (or _us for US lineup)
+    |-- Sprite sheet textures (1024x1024 RGBA)
+    |-- Icon coordinate map: "0000" -> {x, y, w, h}
+    |-- frameList: time -> icon mapping
+    \-- "pkg" parameter selects which icon to display
+              |
+              v
+  <span class="highlight">Rendered carousel on screen</span>
+    </div>
+
+    <h2>File Priority</h2>
+    <p>
+      m2engage checks for extracted files first, falling back to <code>alldata.bin</code>:
+    </p>
+    <ol>
+      <li>Extracted directory file (e.g., <code>040/config/title_mode_top.psb.m</code>)</li>
+      <li>Entry in <code>alldata.bin</code> via <code>alldata.psb.m</code> manifest</li>
+    </ol>
+    <p>
+      This means you can override individual files by placing them in the extracted directory
+      structure without rebuilding the entire alldata archive.
+    </p>
+
+    <h2>Title Packs</h2>
+    <p>
+      The <code>040/</code> directory is for dev_id 40 (PC Engine / Japan). The system
+      also supports dev_id 41 (TurboGrafx-16 / USA), but in the PCE Mini, both JP and US
+      lineups are stored in the same <code>040/</code> pack. The <code>system_prof.psb</code>
+      maps dev_ids to title packs:
+    </p>
+    <pre><code>// system_prof.psb -> title_list
+{
+  "40": { "dev_name": "PceMini",    "dev_id": 40 },
+  "41": { "dev_name": "TgMini",     "dev_id": 41 }
+}</code></pre>
+  </main>
+</body>
+</html>

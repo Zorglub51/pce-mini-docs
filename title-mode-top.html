@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>title_mode_top - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html" class="active">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>title_mode_top <span class="tag">config</span></h1>
+    <p class="page-desc">
+      The master game list. Defines all 200 game slots across four sections,
+      with metadata, display names, sorting indices, and platform information.
+    </p>
+
+    <h2>File Location</h2>
+    <pre><code>040/config/title_mode_top.psb.m</code></pre>
+    <p>Original size: 5,092 bytes (encrypted+compressed). Decodes to ~113 KB JSON.</p>
+
+    <h2>Top-Level Structure</h2>
+    <pre><code>{
+  "items": [ ... ],              // 200 game entries (always 200)
+  "motion_basename": "title_grandmenu",
+  "motion_chara": "grandmenu",
+  "motion_label": "stand",
+  "scroll_frame": 10,
+  "scroll_variable": "gametitle_normal",
+  "titleNum": 34,                // JP game count
+  "titleNumTG": 24               // US game count
+}</code></pre>
+
+    <div class="box box-warning">
+      <strong>All top-level keys are required</strong>
+      The <code>motion_*</code>, <code>scroll_*</code> keys are used by the native engine
+      for menu animation. Omitting them may cause rendering issues.
+    </div>
+
+    <h2>The 200 Items Array</h2>
+    <p>
+      The items array is <strong>always exactly 200 entries</strong>, divided into four sections
+      of 50. Unused slots are filled with DUMMY entries.
+    </p>
+
+    <!-- SVG diagram for the 200-item array -->
+    <svg width="750" height="320" viewBox="0 0 750 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background -->
+      <rect x="0" y="0" width="750" height="320" fill="#161b22" rx="8"/>
+
+      <!-- Title -->
+      <text x="375" y="28" fill="#e6edf3" font-size="14" font-weight="bold" text-anchor="middle">items[200] Array Layout</text>
+
+      <!-- Section backgrounds -->
+      <!-- JP/PCE names -->
+      <rect x="20" y="45" width="345" height="110" fill="#1a1a2e" rx="6" stroke="#e44" stroke-width="1.5"/>
+      <!-- US/TG16 names -->
+      <rect x="385" y="45" width="345" height="110" fill="#1a2a3a" rx="6" stroke="#38a" stroke-width="1.5"/>
+      <!-- EN/PCE names -->
+      <rect x="20" y="175" width="345" height="110" fill="#1a2e1a" rx="6" stroke="#7a5" stroke-width="1.5"/>
+      <!-- EN/US names -->
+      <rect x="385" y="175" width="345" height="110" fill="#2a2a1a" rx="6" stroke="#a85" stroke-width="1.5"/>
+
+      <!-- Section labels -->
+      <text x="192" y="68" fill="#f85149" font-size="12" font-weight="bold" text-anchor="middle">Items 0-49: JP Names, PCE Lineup</text>
+      <text x="557" y="68" fill="#58a6ff" font-size="12" font-weight="bold" text-anchor="middle">Items 50-99: JP Names, US/TG16 Lineup</text>
+      <text x="192" y="198" fill="#7ee787" font-size="12" font-weight="bold" text-anchor="middle">Items 100-149: EN Names, PCE Lineup</text>
+      <text x="557" y="198" fill="#d29922" font-size="12" font-weight="bold" text-anchor="middle">Items 150-199: EN Names, US/TG16 Lineup</text>
+
+      <!-- JP/PCE details -->
+      <text x="40" y="90" fill="#e6edf3" font-size="11">[0] THE 功夫 (GAME000)</text>
+      <text x="40" y="105" fill="#e6edf3" font-size="11">[1] PC原人 (GAME001)</text>
+      <text x="40" y="120" fill="#8b949e" font-size="11">  ...</text>
+      <text x="40" y="135" fill="#e6edf3" font-size="11">[33] GAME059</text>
+      <text x="40" y="150" fill="#484f58" font-size="11">[34-49] DUMMY &times; 16</text>
+
+      <!-- US/TG16 details -->
+      <text x="405" y="90" fill="#e6edf3" font-size="11">[50] NINJA SPIRIT (GAME020)</text>
+      <text x="405" y="105" fill="#e6edf3" font-size="11">[51] BONK'S REVENGE (GAME021)</text>
+      <text x="405" y="120" fill="#8b949e" font-size="11">  ...</text>
+      <text x="405" y="135" fill="#e6edf3" font-size="11">[73] GAME049</text>
+      <text x="405" y="150" fill="#484f58" font-size="11">[74-99] DUMMY &times; 26</text>
+
+      <!-- EN/PCE details -->
+      <text x="40" y="220" fill="#e6edf3" font-size="11">[100] The Kung Fu (GAME000)</text>
+      <text x="40" y="235" fill="#e6edf3" font-size="11">[101] PC Genjin (GAME001)</text>
+      <text x="40" y="250" fill="#8b949e" font-size="11">  ...</text>
+      <text x="40" y="265" fill="#e6edf3" font-size="11">[133] GAME059</text>
+      <text x="40" y="280" fill="#484f58" font-size="11">[134-149] DUMMY &times; 16</text>
+
+      <!-- EN/US details -->
+      <text x="405" y="220" fill="#e6edf3" font-size="11">[150] Ninja Spirit (GAME020)</text>
+      <text x="405" y="235" fill="#e6edf3" font-size="11">[151] Bonk's Revenge (GAME021)</text>
+      <text x="405" y="250" fill="#8b949e" font-size="11">  ...</text>
+      <text x="405" y="265" fill="#e6edf3" font-size="11">[173] GAME049</text>
+      <text x="405" y="280" fill="#484f58" font-size="11">[174-199] DUMMY &times; 26</text>
+
+      <!-- Arrows between mirror sections -->
+      <text x="192" y="170" fill="#8b949e" font-size="10" text-anchor="middle">mirrors &darr; (English names)</text>
+      <text x="557" y="170" fill="#8b949e" font-size="10" text-anchor="middle">mirrors &darr; (English names)</text>
+
+      <!-- Count labels -->
+      <text x="192" y="302" fill="#f85149" font-size="11" text-anchor="middle">titleNum = 34</text>
+      <text x="557" y="302" fill="#58a6ff" font-size="11" text-anchor="middle">titleNumTG = 24</text>
+    </svg>
+
+    <h2>Item Entry Fields</h2>
+    <p>Each of the 200 items has these fields:</p>
+
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th><th>Example</th></tr>
+      <tr>
+        <td><code>regionTag</code></td><td>string</td>
+        <td>Game ID. Links to title_prof entries. <code>"DUMMY"</code> for empty slots</td>
+        <td><code>"GAME000"</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code> / <code>tname</code></td><td>string</td>
+        <td>Display name. <code>name</code> = original, <code>tname</code> = translated/display version</td>
+        <td><code>"THE 功夫"</code></td>
+      </tr>
+      <tr>
+        <td><code>image</code></td><td>int</td>
+        <td>Index into the cover motion sprite sheet (0-based)</td>
+        <td><code>0</code></td>
+      </tr>
+      <tr>
+        <td><code>csize</code></td><td>int</td>
+        <td>Platform type (see table below)</td>
+        <td><code>0</code></td>
+      </tr>
+      <tr>
+        <td><code>ccolor</code></td><td>int</td>
+        <td>Box/border color in UI (see table below)</td>
+        <td><code>0</code></td>
+      </tr>
+      <tr>
+        <td><code>players</code></td><td>int</td>
+        <td>Number of players (1 or 2). DUMMY entries use <code>1</code></td>
+        <td><code>1</code></td>
+      </tr>
+      <tr>
+        <td><code>demo_time</code></td><td>int</td>
+        <td>Demo/attract mode duration in milliseconds</td>
+        <td><code>6120</code></td>
+      </tr>
+      <tr>
+        <td><code>titlebar</code></td><td>int</td>
+        <td>Title bar style (0-12)</td>
+        <td><code>4</code></td>
+      </tr>
+      <tr>
+        <td><code>ScreenMode</code></td><td>int</td>
+        <td>Display mode (0 = default)</td>
+        <td><code>0</code></td>
+      </tr>
+      <tr>
+        <td><code>EmuOfsX</code> / <code>EmuOfsY</code></td><td>int</td>
+        <td>Emulator screen offset in pixels</td>
+        <td><code>0</code></td>
+      </tr>
+      <tr>
+        <td><code>dev_name</code></td><td>string</td>
+        <td>Always <code>"PceMini"</code></td>
+        <td><code>"PceMini"</code></td>
+      </tr>
+      <tr>
+        <td><code>action</code></td><td>string</td>
+        <td>Always <code>"Boot"</code></td>
+        <td><code>"Boot"</code></td>
+      </tr>
+      <tr>
+        <td><code>regionTagE</code></td><td>string</td>
+        <td>Always <code>"NO"</code></td>
+        <td><code>"NO"</code></td>
+      </tr>
+      <tr>
+        <td><code>regionTagS1</code> / <code>regionTagS2</code></td><td>string</td>
+        <td>Always <code>"NO"</code></td>
+        <td><code>"NO"</code></td>
+      </tr>
+      <tr>
+        <td><code>copy</code> / <code>desc</code></td><td>string</td>
+        <td>Unused, always empty <code>""</code></td>
+        <td><code>""</code></td>
+      </tr>
+    </table>
+
+    <h3>Sorting Fields</h3>
+    <table>
+      <tr><th>Field</th><th>Description</th></tr>
+      <tr><td><code>sor_name</code></td><td>Position when sorted alphabetically by name</td></tr>
+      <tr><td><code>sor_date</code></td><td>Position when sorted by release date</td></tr>
+      <tr><td><code>sor_demo</code></td><td>Position when sorted by demo mode order</td></tr>
+      <tr><td><code>sor_genr</code></td><td>Position when sorted by genre</td></tr>
+      <tr><td><code>sor_pnum</code></td><td>Position when sorted by player count</td></tr>
+    </table>
+
+    <div class="box box-danger">
+      <strong>CRITICAL: Sorting indices must be in range!</strong>
+      Every <code>sor_*</code> value must be in the range <code>[0, titleNum-1]</code> for JP items
+      (or <code>[0, titleNumTG-1]</code> for US items). Out-of-range values cause
+      <strong>black screen</strong> &mdash; the scripts silently crash with an array out-of-bounds
+      when building the sort index table. This is the #1 gotcha when modifying game lists.
+    </div>
+
+    <h3>csize Values (Platform Type)</h3>
+    <table>
+      <tr><th>Value</th><th>Platform</th><th>Description</th></tr>
+      <tr><td><code>0</code></td><td>TG16 / PC Engine</td><td>HuCard games</td></tr>
+      <tr><td><code>1</code></td><td>SuperGrafx</td><td>SuperGrafx-enhanced games</td></tr>
+      <tr><td><code>2</code></td><td>CD-ROM&sup2;</td><td>CD-ROM System games</td></tr>
+      <tr><td><code>3</code></td><td>Super CD-ROM&sup2;</td><td>Super System Card games</td></tr>
+      <tr><td><code>4</code></td><td>Arcade CD-ROM&sup2;</td><td>Arcade Card games</td></tr>
+    </table>
+
+    <h3>ccolor Values (Box Color)</h3>
+    <table>
+      <tr><th>Value</th><th>Color</th><th>Default for</th></tr>
+      <tr><td><code>0</code></td><td>White</td><td>TG16 / PC Engine (HuCard)</td></tr>
+      <tr><td><code>1</code></td><td>Yellow</td><td>CD-ROM games</td></tr>
+      <tr><td><code>2</code></td><td>Blue</td><td>(unused in originals)</td></tr>
+      <tr><td><code>3</code></td><td>Red</td><td>SuperGrafx</td></tr>
+    </table>
+
+    <h2>DUMMY Entries</h2>
+    <p>
+      Unused slots (after the real games in each section) must be filled with DUMMY entries.
+      Here's the template from the original data:
+    </p>
+    <pre><code>{
+  "EmuOfsX": 0,
+  "EmuOfsY": 0,
+  "ScreenMode": 0,
+  "action": "Boot",
+  "ccolor": 0,
+  "copy": "",
+  "csize": 0,
+  "demo_time": 6180,
+  "desc": "",
+  "dev_name": "PceMini",
+  "image": <em>&lt;section_index&gt;</em>,
+  "name": "DUMMY",
+  "players": 1,             // Note: 1, not 0!
+  "regionTag": "DUMMY",
+  "regionTagE": "NO",
+  "regionTagS1": "NO",
+  "regionTagS2": "NO",
+  "sor_date": <em>&lt;section_index&gt;</em>,
+  "sor_demo": <em>&lt;section_index&gt;</em>,
+  "sor_genr": <em>&lt;section_index&gt;</em>,
+  "sor_name": <em>&lt;section_index&gt;</em>,
+  "sor_pnum": <em>&lt;section_index&gt;</em>,
+  "titlebar": 0,
+  "tname": "DUMMY"
+}</code></pre>
+
+    <div class="box box-info">
+      <strong>DUMMY sor_* values</strong>
+      DUMMY entries' <code>sor_*</code> should be set to their position within the 50-item section
+      (0-49). This ensures they never reference an out-of-bounds index regardless of
+      <code>titleNum</code>/<code>titleNumTG</code> values.
+    </div>
+
+    <h2>Section Mirroring</h2>
+    <p>
+      The EN sections (100-149, 150-199) mirror their JP counterparts (0-49, 50-99)
+      with the same <code>regionTag</code>, <code>image</code>, <code>csize</code>, etc.
+      Only the display name differs:
+    </p>
+    <ul>
+      <li>Section 0-49: <code>tname = "THE 功夫"</code> (Japanese)</li>
+      <li>Section 100-149: <code>tname = "The Kung Fu"</code> (English)</li>
+    </ul>
+    <p>
+      The EN variants have <code>players: 0</code> in some original entries (used to indicate
+      they're display variants, not independent games).
+    </p>
+
+    <h2>Example: Minimal 5-Game Pack</h2>
+    <pre><code>{
+  "items": [
+    // [0-4]: 5 JP/PCE games with sor_* in range [0,4]
+    { "regionTag": "GAME100", "tname": "Game One",   "image": 0, "csize": 0, "sor_name": 0, "sor_date": 0, ... },
+    { "regionTag": "GAME101", "tname": "Game Two",   "image": 1, "csize": 0, "sor_name": 1, "sor_date": 1, ... },
+    { "regionTag": "GAME102", "tname": "Game Three", "image": 2, "csize": 0, "sor_name": 2, "sor_date": 2, ... },
+    { "regionTag": "GAME103", "tname": "Game Four",  "image": 3, "csize": 0, "sor_name": 3, "sor_date": 3, ... },
+    { "regionTag": "GAME104", "tname": "Game Five",  "image": 4, "csize": 0, "sor_name": 4, "sor_date": 4, ... },
+    // [5-49]: DUMMY entries with sor_* = section_index
+    { "regionTag": "DUMMY", "sor_name": 5, "sor_date": 5, ... },
+    { "regionTag": "DUMMY", "sor_name": 6, "sor_date": 6, ... },
+    ...
+    // [50-54]: 5 US/TG16 games (same pattern)
+    // [55-99]: DUMMY
+    // [100-104]: EN translations of JP games
+    // [105-149]: DUMMY
+    // [150-154]: EN translations of US games
+    // [155-199]: DUMMY
+  ],
+  "motion_basename": "title_grandmenu",
+  "motion_chara": "grandmenu",
+  "motion_label": "stand",
+  "scroll_frame": 10,
+  "scroll_variable": "gametitle_normal",
+  "titleNum": 5,
+  "titleNumTG": 5
+}</code></pre>
+
+  </main>
+</body>
+</html>

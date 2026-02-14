@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Save System - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html" class="active">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Save System</h1>
+    <p class="page-desc">
+      How m2engage persists system settings, game save states, SRAM, and replay data.
+      Covers the backup manager, file naming conventions, and the autosave lifecycle.
+    </p>
+
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#overview">Architecture Overview</a></li>
+      <li><a href="#segments">Backup Segments</a></li>
+      <li><a href="#file-naming">File Naming Convention</a></li>
+      <li><a href="#system-data">System Data (Settings)</a></li>
+      <li><a href="#state-data">Emulator State Data (Save States)</a></li>
+      <li><a href="#lifecycle">Save/Load Lifecycle</a></li>
+      <li><a href="#autosave">Autosave System</a></li>
+      <li><a href="#host-functions">Host Save/Load Functions (Debug)</a></li>
+      <li><a href="#struct-templates">Struct Template PSBs</a></li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <h2 id="overview">1. Architecture Overview</h2>
+
+    <p>
+      m2engage uses a two-level save system managed entirely by native C++ code.
+      Squirrel scripts interact with it through the <code>g_systemdata</code> global
+      object and the <code>BackupStatedata</code> class.
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">Save System Architecture</span>
+
+  <span class="highlight">g_systemdata</span>  (native C++ SystemData object)
+    |
+    |-- <span class="hl-green">System Backup Manager</span>
+    |     |-- SYSTEM_DATA     (1 slot)   &larr; system-wide settings
+    |     |-- SYSTEM_ARCHIVE  (1 slot)   &larr; system archive
+    |     \-- SOUND_PLAY_LIST (2 slots)  &larr; BGM/sound config
+    |
+    \-- <span class="hl-green">Title Backup Manager</span>
+          |-- TITLE_DATA            (1 slot)    &larr; per-title settings
+          |-- TITLE_SOUND_PLAY_LIST (1 slot)    &larr; per-title sound
+          |-- EMU_STATE_L           (500 slots) &larr; large save states
+          |-- EMU_STATE             (500 slots) &larr; normal save states
+          \-- EMU_REPLAY            (99 slots)  &larr; input replay data
+
+  <span class="hl-purple">Physical storage</span>: save/data_{type}_{slot}.bin + save/meta_{type}_{slot}.bin
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="segments">2. Backup Segments</h2>
+
+    <p>
+      Each type of save data is a <strong>segment</strong> with a numeric type ID, a slot count,
+      and a format version. Defined in <code>const.nut</code>:
+    </p>
+
+    <table>
+      <tr>
+        <th>Segment</th>
+        <th>Type ID</th>
+        <th>Slots</th>
+        <th>Version</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>SYSTEM_DATA</code></td>
+        <td>0</td>
+        <td>1</td>
+        <td>0x00010012</td>
+        <td>System-wide settings (language, screen, pad, etc.)</td>
+      </tr>
+      <tr>
+        <td><code>SYSTEM_ARCHIVE</code></td>
+        <td>1</td>
+        <td>1</td>
+        <td>0x00010010</td>
+        <td>System archive data</td>
+      </tr>
+      <tr>
+        <td><code>SOUND_PLAY_LIST</code></td>
+        <td>2</td>
+        <td>2</td>
+        <td>0x00010010</td>
+        <td>Sound/BGM playlist settings</td>
+      </tr>
+      <tr>
+        <td colspan="5" style="text-align:center; color:var(--text-muted)">
+          <em>IDs 3&ndash;7 reserved (dummy)</em>
+        </td>
+      </tr>
+      <tr>
+        <td><code>TITLE_DATA</code></td>
+        <td>8</td>
+        <td>1</td>
+        <td>0x00010018</td>
+        <td>Per-title settings (game config, medals, SRAM)</td>
+      </tr>
+      <tr>
+        <td><code>TITLE_SOUND_PLAY_LIST</code></td>
+        <td>9</td>
+        <td>1</td>
+        <td>0x00010010</td>
+        <td>Per-title sound settings</td>
+      </tr>
+      <tr>
+        <td colspan="5" style="text-align:center; color:var(--text-muted)">
+          <em>ID 10 reserved (dummy)</em>
+        </td>
+      </tr>
+      <tr>
+        <td><code>EMU_STATE_L</code></td>
+        <td>11</td>
+        <td>500</td>
+        <td>0x00010010</td>
+        <td>Large emulator save states</td>
+      </tr>
+      <tr>
+        <td><code>EMU_STATE</code></td>
+        <td>12</td>
+        <td>500</td>
+        <td>0x00010010</td>
+        <td>Normal emulator save states</td>
+      </tr>
+      <tr>
+        <td><code>EMU_REPLAY</code></td>
+        <td>13</td>
+        <td>99</td>
+        <td>0x00010010</td>
+        <td>Input replay recordings</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Multi-title packs</strong>
+      For packages with multiple titles (e.g., PCE Mini with 58 games), the title-specific
+      segments (EMU_STATE, EMU_REPLAY) are multiplied per title. The constant
+      <code>NUM_EMU_DATA_SEGMENT_TYPES = 2</code> controls how many segment types are
+      duplicated per additional title.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="file-naming">3. File Naming Convention</h2>
+
+    <h3>Backup Manager Files (Normal Save System)</h3>
+    <p>
+      The native backup manager writes to a <code>save/</code> directory relative to
+      the m2engage working directory. On the original hardware, this is
+      <code>/usr/game/save/</code>.
+    </p>
+
+    <p>Each save slot produces two files:</p>
+    <pre><code>save/data_{TYPE:03d}_{SLOT:04d}.bin    &larr; actual save data
+save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</code></pre>
+
+    <p>
+      <code>TYPE</code> is the <code>BackupSegmentTypes</code> enum value (zero-padded to 3 digits).
+      <code>SLOT</code> is the slot index within that segment (zero-padded to 4 digits).
+    </p>
+
+    <h4>Example files</h4>
+    <table>
+      <tr><th>File</th><th>Segment</th><th>Size</th><th>Description</th></tr>
+      <tr>
+        <td><code>data_000_0000.bin</code></td>
+        <td>SYSTEM_DATA</td>
+        <td>~1.2 MB</td>
+        <td>System settings (language, screen, wallpaper, etc.)</td>
+      </tr>
+      <tr>
+        <td><code>data_008_0000.bin</code></td>
+        <td>TITLE_DATA</td>
+        <td>~1.2 MB</td>
+        <td>Title settings (per-game config, medals, SRAM)</td>
+      </tr>
+      <tr>
+        <td><code>data_012_0000.bin</code></td>
+        <td>EMU_STATE slot 0</td>
+        <td>~876 KB</td>
+        <td>First emulator save state</td>
+      </tr>
+      <tr>
+        <td><code>data_012_0001.bin</code></td>
+        <td>EMU_STATE slot 1</td>
+        <td>~876 KB</td>
+        <td>Second emulator save state</td>
+      </tr>
+      <tr>
+        <td><code>data_013_0000.bin</code></td>
+        <td>EMU_REPLAY slot 0</td>
+        <td>varies</td>
+        <td>First replay recording</td>
+      </tr>
+      <tr>
+        <td><code>meta_008_0000.bin</code></td>
+        <td>TITLE_DATA meta</td>
+        <td>404 bytes</td>
+        <td>PSB-format metadata for the title data</td>
+      </tr>
+    </table>
+
+    <h3>Meta Files (404 bytes)</h3>
+    <p>
+      Each <code>meta_*.bin</code> is a small PSBv3 structure containing save metadata.
+      All meta files are exactly 404 bytes regardless of the segment type:
+    </p>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr>
+        <td><code>TimeStamp</code></td>
+        <td>integer</td>
+        <td>Unix timestamp of when the save was created</td>
+      </tr>
+      <tr>
+        <td><code>FileSize</code></td>
+        <td>integer</td>
+        <td>Size of the corresponding <code>data_*.bin</code> file in bytes</td>
+      </tr>
+      <tr>
+        <td><code>OriginalSize</code></td>
+        <td>integer</td>
+        <td>Uncompressed size (same as FileSize &mdash; saves are not compressed)</td>
+      </tr>
+      <tr>
+        <td><code>FileVersion</code></td>
+        <td>integer</td>
+        <td>Format version (0x10200 = 66048)</td>
+      </tr>
+      <tr>
+        <td><code>Digest</code></td>
+        <td>16 bytes</td>
+        <td>Integrity checksum of the data file</td>
+      </tr>
+      <tr>
+        <td><code>CryptMagic</code></td>
+        <td>integer</td>
+        <td>Encryption flag (0 = no encryption)</td>
+      </tr>
+    </table>
+
+    <h3>SRAM vs Emulator State</h3>
+    <p>
+      Game saves involve two distinct types of data that serve different purposes:
+    </p>
+    <table>
+      <tr><th></th><th>SRAM (in TITLE_DATA, type 008)</th><th>Emulator State (types 011/012)</th></tr>
+      <tr>
+        <td><strong>What it is</strong></td>
+        <td>The game&rsquo;s own battery-backed save RAM. On real hardware, this is a small
+            chip on the HuCard that persists between power cycles.</td>
+        <td>A complete hardware snapshot &mdash; CPU registers, all system RAM, VRAM,
+            audio registers, I/O state, timers. Like pausing the entire machine at a
+            specific frame.</td>
+      </tr>
+      <tr>
+        <td><strong>What it stores</strong></td>
+        <td>Whatever the game itself writes: high scores, save game progress,
+            character stats, unlocks.</td>
+        <td>The exact state of the emulated console at one instant. Screen contents,
+            audio position, controller state &mdash; everything.</td>
+      </tr>
+      <tr>
+        <td><strong>Real-world analogy</strong></td>
+        <td>A memory card</td>
+        <td>A VM snapshot / freeze-frame</td>
+      </tr>
+      <tr>
+        <td><strong>Size</strong></td>
+        <td>Up to 8 KB per game (compressed in TITLE_DATA)</td>
+        <td>256 KB (HuCard) or 1.5 MB (CD)</td>
+      </tr>
+      <tr>
+        <td><strong>Per save slot?</strong></td>
+        <td>Yes &mdash; each of the 4 save slots captures an independent compressed
+            SRAM snapshot</td>
+        <td>Yes &mdash; each slot is a separate <code>data_0XX_YYYY.bin</code> file</td>
+      </tr>
+      <tr>
+        <td><strong>Where stored</strong></td>
+        <td>Inside <code>data_008_0000.bin</code> (the 1.29 MB TITLE_DATA file,
+            <code>struct_sram_data</code> arrays)</td>
+        <td>Individual files: <code>data_012_YYYY.bin</code> (HuCard) or
+            <code>data_011_YYYY.bin</code> (CD)</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Both are saved together</strong>
+      When the user creates a save state from the pause menu, m2engage writes both an
+      emulator state file (the hardware snapshot) and updates the SRAM entry in TITLE_DATA
+      (the game&rsquo;s own save data at that moment). Loading a save state restores both:
+      the exact screen and audio <em>and</em> the game&rsquo;s internal save progress.
+    </div>
+
+    <h3>Data File Layout &mdash; Game Saves (Types 011/012)</h3>
+    <p>
+      Game save state data files have a fixed layout with four regions:
+    </p>
+    <div class="diagram">
+<span class="hl-blue">Game Save Data File Layout</span>
+
+  <span class="hl-green">Header</span>          0x000 &ndash; 0x2FF       768 bytes
+    |-- 0x050: Game ID string (e.g. "GAME000", "GAME031")
+    |-- 0x040: Checksum
+    \-- Other emulator metadata (version, flags, tick counts)
+
+  <span class="hl-green">Emulator State</span>   0x300 &ndash; thumb_offset
+    Full CPU/RAM/VRAM/audio snapshot of the emulated hardware.
+    Everything needed to resume gameplay exactly where you left off.
+
+  <span class="hl-green">Screenshot</span>       thumb_offset + 8 bytes
+    |-- 4 bytes: width  (320)
+    |-- 4 bytes: height (240)
+    \-- 230,400 bytes: raw RGB pixel data (320 &times; 240 &times; 3)
+
+  <span class="hl-green">Padding</span>          After screenshot to end of file
+    All zeros. Reserved space, currently unused.
+    </div>
+
+    <table>
+      <tr>
+        <th>Save Type</th>
+        <th>Total Size</th>
+        <th>Emu State</th>
+        <th>Thumb Offset</th>
+        <th>Screenshot</th>
+        <th>Padding</th>
+      </tr>
+      <tr>
+        <td>012 (HuCard)</td>
+        <td>876 KB</td>
+        <td>256 KB</td>
+        <td><code>0x040300</code></td>
+        <td>225 KB</td>
+        <td>393 KB</td>
+      </tr>
+      <tr>
+        <td>011 (CD)</td>
+        <td>2.1 MB</td>
+        <td>1.5 MB</td>
+        <td><code>0x180300</code></td>
+        <td>225 KB</td>
+        <td>393 KB</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Why are CD saves 6&times; larger?</strong>
+      CD-ROM&sup2; / Super CD games have significantly more hardware to snapshot:
+      the Super System Card provides 256 KB of RAM, plus CD ADPCM audio buffers
+      and additional I/O state. HuCard games only need the base PCE&rsquo;s 8 KB work RAM
+      plus VRAM and audio registers.
+    </div>
+
+    <h3>Data File Layout &mdash; Title Data (Type 008)</h3>
+    <p>
+      The TITLE_DATA file (<code>data_008_0000.bin</code>) is <strong>raw uncompressed
+      binary</strong> &mdash; not zlib-compressed, not PSB-formatted. It starts directly with
+      the struct version (<code>0x00010018</code>) and follows the schema defined in
+      <code>struct_systemdata_title.json</code>.
+    </p>
+
+    <p>
+      At <strong>1.29 MB</strong>, it is surprisingly large for a settings file. The breakdown
+      reveals why:
+    </p>
+
+    <table>
+      <tr><th>Section</th><th>Size</th><th>Content</th></tr>
+      <tr>
+        <td>Header</td>
+        <td>60 B</td>
+        <td>Struct version</td>
+      </tr>
+      <tr>
+        <td>Controller settings</td>
+        <td>976 B</td>
+        <td>Button mapping for 8 pads (16 keys + rapid speed + shortcuts each)</td>
+      </tr>
+      <tr>
+        <td>Display settings</td>
+        <td>60 B</td>
+        <td>Screen mode, resolution, scanline, smoothing, 3D options</td>
+      </tr>
+      <tr>
+        <td>Sound settings</td>
+        <td>52 B</td>
+        <td>Master volume, channel mode, arrange BGM</td>
+      </tr>
+      <tr>
+        <td>Save / Network / Misc</td>
+        <td>~200 B</td>
+        <td>Autosave, replay time, region tag, etc.</td>
+      </tr>
+      <tr>
+        <td>Backup flags</td>
+        <td>44 B</td>
+        <td>Last played game, sort type, UI state, 100 lock flags</td>
+      </tr>
+      <tr>
+        <td>Medal system</td>
+        <td>512 B</td>
+        <td>Achievement tracking work buffers</td>
+      </tr>
+      <tr>
+        <td>Per-game settings (&times;150)</td>
+        <td>19 KB</td>
+        <td>128 bytes per game: difficulty, control options, preset type</td>
+      </tr>
+      <tr class="highlight-row">
+        <td><strong>SRAM data (&times;150)</strong></td>
+        <td><strong>1,237 KB</strong></td>
+        <td>4 SRAM entries (64B each) + 8 KB image buffer per game</td>
+      </tr>
+      <tr>
+        <td><strong>Total</strong></td>
+        <td><strong>~1,260 KB</strong></td>
+        <td></td>
+      </tr>
+    </table>
+
+    <div class="box box-warning">
+      <strong>98% is SRAM</strong>
+      The SRAM data section dominates the file. Each of the 150 possible game slots gets a
+      pre-allocated <code>struct_sram_data</code> containing 4 <code>struct_sram_entry</code>
+      headers (one per save state slot, with offset/size_enc/size_dec pointing into the buffer)
+      and an 8,192-byte shared image buffer. The 4 entries store independently compressed SRAM
+      snapshots packed into this buffer, so each save state slot preserves the SRAM as it was
+      at save time. This space is pre-allocated for all 150 games regardless of whether they
+      have been played: 150 &times; 8,448 = 1,237 KB.
+    </div>
+
+    <h4>Verified Settings Offsets</h4>
+    <p>
+      The following binary offsets within <code>data_008_0000.bin</code> have been empirically
+      verified. These can be used to read settings directly from the raw file:
+    </p>
+
+    <table>
+      <tr><th>Offset</th><th>Field</th><th>Type</th><th>Known Values</th></tr>
+      <tr><td><code>0x0840</code></td><td>Display: size_auto</td><td>uint32</td>
+        <td>0=Normal, 1=Original Only, 2=Fit, 3=Full, 4=Original, 5=Manual</td></tr>
+      <tr><td><code>0x0844</code></td><td>Display: size_x</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x0848</code></td><td>Display: size_y</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x085C</code></td><td>Display: ratio</td><td>uint32</td><td>0=Off, 1=On</td></tr>
+      <tr><td><code>0x0860</code></td><td>Display: scanline</td><td>uint32</td><td>0=Off, 1=On</td></tr>
+      <tr><td><code>0x0864</code></td><td>Display: smoothing</td><td>uint32</td><td>0=Off, 1=On</td></tr>
+      <tr><td><code>0x0868</code></td><td>Display: manual_size_x</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x086C</code></td><td>Display: manual_size_y</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x08C0</code></td><td>Sound: volume_master</td><td>uint32</td><td>0&ndash;100</td></tr>
+      <tr><td><code>0x08C4</code></td><td>Sound: channel</td><td>uint32</td><td>0=Mono, 1=Stereo</td></tr>
+      <tr><td><code>0x08C8</code></td><td>Sound: arrange_bgm</td><td>uint32</td><td>0=Off, 1=On</td></tr>
+      <tr><td><code>0x0900</code></td><td>Save: autosave</td><td>uint32</td><td>0=Off, 1=On</td></tr>
+      <tr><td><code>0x0908</code></td><td>Save: replay_record_time</td><td>uint32</td><td>seconds</td></tr>
+      <tr><td><code>0x0948</code></td><td>Misc: game_regionTag</td><td>char[15]</td><td>e.g. "GAME031"</td></tr>
+      <tr><td><code>0x0984</code></td><td>Flags: last_dev_id</td><td>uint32</td><td>40=PCE(JP), 41=TG16(US)</td></tr>
+      <tr><td><code>0x0988</code></td><td>Flags: last_file_id_state</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x0998</code></td><td>Flags: last_sortType</td><td>uint32</td><td>0=Default, 1=Alpha, 2=Date, 3=Genre</td></tr>
+      <tr><td><code>0x099C</code></td><td>Flags: last_selectTitle</td><td>uint32</td><td></td></tr>
+      <tr><td><code>0x09A0</code></td><td>Flags: last_viewType</td><td>uint32</td><td></td></tr>
+    </table>
+
+    <h3 id="slot-numbering">Per-Game Save Slot Numbering</h3>
+
+    <p>
+      Each game has <strong>4 save state slots</strong> (numbered 0&ndash;3). The slot number
+      in the filename encodes both the game&rsquo;s position in the lineup and which of the
+      4 slots is used. The file <strong>type</strong> (011 vs 012) depends on the game&rsquo;s
+      platform:
+    </p>
+
+    <table>
+      <tr>
+        <th>Type ID</th>
+        <th>Segment</th>
+        <th>Platform</th>
+        <th>Determined by</th>
+      </tr>
+      <tr>
+        <td>011</td>
+        <td><code>EMU_STATE_L</code></td>
+        <td>CD games (CD-ROM&sup2;, Super CD, Arcade CD)</td>
+        <td><code>csize &ge; 2</code> in title_mode_top</td>
+      </tr>
+      <tr>
+        <td>012</td>
+        <td><code>EMU_STATE</code></td>
+        <td>HuCard / SG Card games</td>
+        <td><code>csize &lt; 2</code> in title_mode_top</td>
+      </tr>
+    </table>
+
+    <h4>Slot Calculation</h4>
+
+    <p>The slot number in the filename is calculated as:</p>
+
+    <pre><code>// JP / PCE lineup (getLinenpIndexOffset() = 0):
+slot = game_index &times; 4 + save_slot       // range: 0&ndash;199
+
+// US / TG16 lineup (getLinenpIndexOffset() = LINEUPMAX = 50):
+slot = (50 + game_index) &times; 4 + save_slot  // range: 200&ndash;399
+
+// Where:
+//   game_index  = sorted position in lineup (0&ndash;49)
+//   save_slot   = which of the 4 save slots (0&ndash;3)
+//   LINEUPMAX   = 50 (max games per lineup)</code></pre>
+
+    <p>
+      The corresponding Squirrel code in <code>mode_title_select.nut</code>:
+    </p>
+
+    <pre><code>local sortindexLineup = s_indextable[selectindex] + getLinenpIndexOffset();
+local fileid = i + (sortindexLineup * 4);
+// i = save slot (0-3)
+// getLinenpIndexOffset() returns 0 for JP, 50 for US</code></pre>
+
+    <h4>Worked Examples</h4>
+
+    <table>
+      <tr>
+        <th>Filename</th>
+        <th>Type</th>
+        <th>Slot</th>
+        <th>Lineup</th>
+        <th>Game Index</th>
+        <th>Save Slot</th>
+        <th>Meaning</th>
+      </tr>
+      <tr>
+        <td><code>data_012_0000.bin</code></td>
+        <td>HuCard</td>
+        <td>0</td>
+        <td>JP</td>
+        <td>0</td>
+        <td>0</td>
+        <td>First JP HuCard game, slot 0</td>
+      </tr>
+      <tr>
+        <td><code>data_012_0016.bin</code></td>
+        <td>HuCard</td>
+        <td>16</td>
+        <td>JP</td>
+        <td>4</td>
+        <td>0</td>
+        <td>5th JP HuCard game, slot 0</td>
+      </tr>
+      <tr>
+        <td><code>data_011_0019.bin</code></td>
+        <td>CD</td>
+        <td>19</td>
+        <td>JP</td>
+        <td>4</td>
+        <td>3</td>
+        <td>5th JP CD game, slot 3</td>
+      </tr>
+      <tr>
+        <td><code>data_012_0200.bin</code></td>
+        <td>HuCard</td>
+        <td>200</td>
+        <td>US</td>
+        <td>0</td>
+        <td>0</td>
+        <td>First US HuCard game, slot 0</td>
+      </tr>
+      <tr>
+        <td><code>data_011_0212.bin</code></td>
+        <td>CD</td>
+        <td>212</td>
+        <td>US</td>
+        <td>3</td>
+        <td>0</td>
+        <td>4th US CD game, slot 0</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>500 slots per segment</strong>
+      Each segment type (EMU_STATE and EMU_STATE_L) has 500 slots total.
+      JP games use slots 0&ndash;199 and US games use slots 200&ndash;399,
+      leaving slots 400&ndash;499 unused. This allows up to 50 games per lineup
+      with 4 save slots each.
+    </div>
+
+    <h3>Host Save Files (Debug/Test Menu)</h3>
+    <p>
+      The <code>host_save_*</code> functions (accessible via test menu) use a different
+      naming scheme, writing directly to the working directory:
+    </p>
+    <pre><code>// With timestamp:
+state_{rom_name}_{YYYYMMDD}_{HHMMSS}.bin
+// Example: state_R-TYPE.pce_20260208_143022.bin
+
+// Without timestamp:
+state_{rom_name}.bin
+// Example: state_R-TYPE.pce.bin
+
+// Replay files:
+replay_{rom_name}.bin
+// Example: replay_R-TYPE.pce.bin
+
+// Screenshots:
+screenshot_{rom_name}_{YYYYMMDD}_{HHMMSS}.bmp</code></pre>
+
+    <p>
+      The ROM name comes from <code>_get_rom_name_for_host()</code>, which returns
+      <code>s_rom_fileparse.name + s_rom_fileparse.ext</code> (e.g., <code>"R-TYPE.pce"</code>)
+      or <code>"image"</code> as fallback.
+    </p>
+
+    <h3>Special State Files</h3>
+    <table>
+      <tr><th>Path</th><th>Purpose</th></tr>
+      <tr>
+        <td><code>{title}/state/emu_screen.bin</code></td>
+        <td>Pre-saved emulator state used as screen display template in menus.
+            Loaded via <code>setup_emulator_statedata()</code> when entering screen settings.</td>
+      </tr>
+      <tr>
+        <td><code>save/.game_noinit</code></td>
+        <td>Sentinel file. If present, the save directory is considered initialized
+            (skips first-run save data creation).</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="system-data">4. System Data (Settings)</h2>
+
+    <p>
+      System-wide settings are managed through <code>g_systemdata.get_value(index)</code>,
+      which returns a typed accessor object. The <code>SystemDataValueIndex</code> enum
+      defines 13 data categories:
+    </p>
+
+    <table>
+      <tr><th>Index</th><th>Name</th><th>Contents</th></tr>
+      <tr>
+        <td>0</td>
+        <td><code>SETTING_PAD</code></td>
+        <td>Controller button mapping</td>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td><code>SETTING_SCREEN</code></td>
+        <td>Display: resolution, scanline, smoothing, 3D mode, window size</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><code>SETTING_SOUND</code></td>
+        <td>Audio: volume, BGM</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><code>SETTING_SAVEDATA</code></td>
+        <td>Save data preferences (replay recording on/off)</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><code>SETTING_ETC</code></td>
+        <td>Miscellaneous: game regionTag, etc.</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><code>SETTING_NETWORK</code></td>
+        <td>Network settings</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><code>SETTING_GAME</code></td>
+        <td>Per-game settings (difficulty, controls, options)</td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><code>BACKUP_FLAGS</code></td>
+        <td>Persistent UI state (see below)</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><code>WINDOW_INFO</code></td>
+        <td>Window position/state</td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td><code>PURCHASE_RECORD</code></td>
+        <td>DLC/purchase history</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td><code>WORK_MEDAL</code></td>
+        <td>Achievement/medal tracking (global)</td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td><code>WORK_TRIAL</code></td>
+        <td>Trial/demo mode data</td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td><code>SRAM_DATA</code></td>
+        <td>Game cartridge RAM image (per-game)</td>
+      </tr>
+    </table>
+
+    <h3>BACKUP_FLAGS &mdash; Persistent UI State</h3>
+    <p>
+      The most frequently accessed system data segment. Stores the user's last
+      selections so the UI can restore them on next boot:
+    </p>
+
+    <table>
+      <tr><th>Getter / Setter</th><th>Stores</th></tr>
+      <tr>
+        <td><code>get/set_05_last_screen()</code></td>
+        <td>Screen mode (0&ndash;4)</td>
+      </tr>
+      <tr>
+        <td><code>get/set_06_last_language()</code></td>
+        <td>UI language index</td>
+      </tr>
+      <tr>
+        <td><code>get/set_07_last_sortType()</code></td>
+        <td>Game list sort method</td>
+      </tr>
+      <tr>
+        <td><code>get/set_08_last_selectTitle()</code></td>
+        <td>Last selected game index</td>
+      </tr>
+      <tr>
+        <td><code>get/set_09_last_viweType()</code></td>
+        <td>View type (list/grid)</td>
+      </tr>
+      <tr>
+        <td><code>get/set_70_firstSelectLang()</code></td>
+        <td>First-run flag (0 = never booted, 1 = language chosen)</td>
+      </tr>
+      <tr>
+        <td><code>get/set_71_wallPaper()</code></td>
+        <td>Wallpaper selection index</td>
+      </tr>
+      <tr>
+        <td><code>get/set_72_screenEffect()</code></td>
+        <td>Screen effect mode (scanlines, etc.)</td>
+      </tr>
+      <tr>
+        <td><code>get/set_74_frameType()</code></td>
+        <td>Bezel/frame type</td>
+      </tr>
+      <tr>
+        <td><code>get/set_75_hardType()</code></td>
+        <td>JP/US lineup selection (0 = JP, 1 = US)</td>
+      </tr>
+      <tr>
+        <td><code>get/set_76_frameAnime()</code></td>
+        <td>Frame animation on/off</td>
+      </tr>
+      <tr>
+        <td><code>get/set_77_BurnInPrevention()</code></td>
+        <td>Anti-burn-in setting</td>
+      </tr>
+      <tr>
+        <td><code>get/set_last_play_mode()</code></td>
+        <td>Last game mode (Normal, Quick Match, Co-op, etc.)</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="state-data">5. Emulator State Data (Save States)</h2>
+
+    <p>
+      Each emulator save state is a binary <code>Struct</code> with this layout:
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">State Data Struct (struct_statedata.psb)</span>
+
+  <span class="highlight">_00_header</span>
+    |-- _00_version          BackupStructVersion (0x00010010)
+    |-- _01_data_version     EmuVersion (emulator compatibility)
+    \-- _02_data_size        Size of state data
+
+  <span class="highlight">_01_added_value</span>
+    |-- _00_title_id         Game title identifier
+    |-- _01_tick_HI          Timestamp (high 32 bits of system tick)
+    |-- _02_tick_LW          Timestamp (low 32 bits of system tick)
+    |-- _05_sram_flag        SRAM enabled/disabled
+    |-- _06_region           Region tag ("JAPAN", "USA", etc.)
+    |-- _07_bitflag          Flags (0x0001 = original_bug_emulation)
+    |-- _08_boot_timer       Boot timer value
+    \-- _11_screen_mode      Active screen mode
+
+  <span class="highlight">_01_setting_game</span>           Game configuration snapshot
+
+  <span class="highlight">_04_medalsystem_1gamework</span>  Per-game achievement data
+
+  <span class="highlight">_05_thumbnail</span>
+    |-- _00_width            Thumbnail width (pixels)
+    |-- _01_height           Thumbnail height (pixels)
+    \-- _02_pixels           Thumbnail image data (raw RGBA)
+    </div>
+
+    <h3>Save State Operations</h3>
+    <p>
+      The <code>BackupStatedata</code> class (native C++) handles all state save/load operations:
+    </p>
+
+    <table>
+      <tr><th>Operation</th><th>Method Chain</th></tr>
+      <tr>
+        <td><strong>Save</strong></td>
+        <td>
+          <code>get_struct()</code> &rarr; <code>clear()</code> &rarr;
+          <code>from_emu()</code> (capture state + thumbnail + header) &rarr;
+          <code>segment.singlesave()</code>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Load</strong></td>
+        <td>
+          <code>segment.singleload()</code> &rarr;
+          <code>check_header()</code> (validate version) &rarr;
+          <code>compare_emu()</code> (detect differences) &rarr;
+          <code>to_emu()</code> (apply to emulator)
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Delete</strong></td>
+        <td><code>delete_state_data(slot_index)</code></td>
+      </tr>
+    </table>
+
+    <div class="box box-warning">
+      <strong>Header validation</strong>
+      When loading a save state, <code>check_header()</code> verifies the
+      <code>BackupStructVersion</code> and <code>EmuVersion</code> for compatibility.
+      If the version doesn't match, the load is rejected. The <code>compare_emu()</code>
+      step detects differences (SRAM, region, bug flags) and may show a confirmation dialog.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="lifecycle">6. Save/Load Lifecycle</h2>
+
+    <div class="diagram">
+<span class="hl-blue">Complete Save Data Lifecycle</span>
+
+  <span class="highlight">BOOT</span>
+    |
+    |  1. Native init: read save/.game_noinit (first-run detection)
+    |  2. Load SYSTEM_DATA &amp; TITLE_DATA from backup manager
+    |  3. ExecAutoload: restore last session state
+    |
+  <span class="hl-green">init_system_create_systemdata()</span>
+    |  - Create backup control structures
+    |  - Load struct templates from system/config/struct_*.psb
+    |  - Initialize segment slot tables
+    |
+  <span class="hl-green">init_system_autoload()</span>
+    |  - Load system settings from SYSTEM_DATA
+    |  - Load title data from TITLE_DATA
+    |  - Apply: language, screen mode, wallpaper, last game
+    |
+  <span class="highlight">TITLE SELECT</span>  (mode_title_select.nut)
+    |
+    |  Read from BACKUP_FLAGS:
+    |    last_selectTitle, last_sortType, last_language, hardType
+    |
+    |  First-run: language select &rarr; set_70_firstSelectLang(1) &rarr; TryAutosave(true)
+    |
+  <span class="highlight">GAME LAUNCH</span>  (mode_normal.nut)
+    |
+    |  1. set_last_play_mode(NORMAL_MODE)
+    |  2. Check free space for EMU_STATE + EMU_REPLAY
+    |  3. request_re_init_emulator() &mdash; re-init with system save data
+    |  4. play_standalone() &mdash; actual gameplay
+    |
+  <span class="highlight">GAME EXIT</span>
+    |
+    |  1. CheckValueChangeAutosave() &mdash; detect SRAM/Flags changes
+    |  2. TryAutosave() &mdash; save changed data
+    |
+  <span class="highlight">RETURN TO MENU</span>
+    |
+    |  Write to BACKUP_FLAGS:
+    |    last_selectTitle, last_sortType, last_viweType, hardType
+    |
+  <span class="highlight">SETTINGS CHANGES</span>  (any settings menu)
+    |
+    |  Modify BACKUP_FLAGS / SETTING_SCREEN / etc.
+    |  TryAutosave(true) &mdash; force immediate save
+    |
+  <span class="hl-purple">[cycle repeats]</span>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="autosave">7. Autosave System</h2>
+
+    <p>
+      Autosave is triggered through the native <code>g_systemdata</code> object.
+      It saves system and title data &mdash; <strong>not</strong> emulator save states
+      (those require explicit user action).
+    </p>
+
+    <h3>Trigger Points</h3>
+    <table>
+      <tr><th>Location</th><th>Call</th><th>When</th></tr>
+      <tr>
+        <td><code>mode_normal.nut:33</code></td>
+        <td><code>TryAutosave()</code></td>
+        <td>After exiting gameplay (SRAM/flags may have changed)</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select.nut:331</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After first-run language selection</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select.nut:348</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After language selection (non-first-run)</td>
+      </tr>
+      <tr>
+        <td><code>mode_main.nut:129</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After 3D display mode change</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_setting.nut:1063</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After data initialization dialog</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_setting.nut:1162</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After screen effect settings change</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_settinglang.nut:208</code></td>
+        <td><code>TryAutosave(true)</code></td>
+        <td>After language change in settings</td>
+      </tr>
+    </table>
+
+    <h3>TryAutosave(force)</h3>
+    <pre><code>// Queued autosave (after gameplay)
+::g_systemdata.CheckValueChangeAutosave();  // mark changed segments
+::g_systemdata.TryAutosave();               // save marked segments
+
+// Forced autosave (after settings change)
+::g_systemdata.TryAutosave(true);           // save immediately</code></pre>
+
+    <div class="box box-danger">
+      <strong>TryAutosave hangs with non-standard dev_id</strong>
+      When <code>s_current_title_dev_id</code> is set to a custom value (e.g., 42 for a custom pack),
+      <code>TryAutosave()</code> can hang or crash. The native save code doesn't handle
+      non-standard dev_ids well. <strong>Always reset dev_id to 40 before any autosave
+      operation</strong>, then re-apply the custom dev_id afterward.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="host-functions">8. Host Save/Load Functions (Debug)</h2>
+
+    <p>
+      These Squirrel functions in <code>emulator.nut</code> provide direct file-based
+      save/load for the test/debug menu. They bypass the backup manager and write
+      directly to the working directory.
+    </p>
+
+    <table>
+      <tr><th>Function</th><th>File Pattern</th><th>Native Call</th></tr>
+      <tr>
+        <td><code>host_save_emulator_statedata()</code></td>
+        <td><code>state_{rom}_{date}_{time}.bin</code></td>
+        <td><code>g_emu_task.host_save_statedata_image()</code></td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_statedata()</code></td>
+        <td><code>state_{rom}[_{date}_{time}].bin</code></td>
+        <td><code>g_emu_task.host_load_statedata_image()</code></td>
+      </tr>
+      <tr>
+        <td><code>host_save_emulator_replaydata()</code></td>
+        <td><code>replay_{rom}.bin</code></td>
+        <td><code>g_emu_task.host_save_sqstruct_image()</code></td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_replaydata()</code></td>
+        <td><code>replay_{rom}.bin</code></td>
+        <td><code>g_emu_task.host_load_sqstruct_image()</code></td>
+      </tr>
+      <tr>
+        <td><code>host_save_screenshot(capture)</code></td>
+        <td><code>screenshot_{rom}_{date}_{time}.bmp</code></td>
+        <td><code>BinaryUtil.StoreBitmapImage()</code></td>
+      </tr>
+    </table>
+
+    <h3>Filename Generation</h3>
+    <pre><code>// _get_filename_with_timestamp_for_host(body, rom, ext, tick)
+// With timestamp (tick != null):
+//   "{body}_{rom}_{YYYYMMDD}_{HHMMSS}{ext}"
+// Without timestamp (tick == null):
+//   "{body}_{rom}{ext}"
+
+// ROM name from _get_rom_name_for_host():
+//   s_rom_fileparse.name + s_rom_fileparse.ext
+//   e.g., "R-TYPE.pce", "BONK.pce"
+//   Fallback: "image"</code></pre>
+
+    <h3>Load File Selection</h3>
+    <p>
+      When loading, <code>host_load_emulator_statedata(true)</code> shows a file selection UI.
+      It uses <code>host_listup_files(".")</code> to enumerate files in the working directory,
+      filters by ROM name, and presents a list via <code>ModeSelectList</code>.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="struct-templates">9. Struct Template PSBs</h2>
+
+    <p>
+      Save data structures are defined by PSB template files that specify the binary
+      layout (field names, types, sizes). The native code loads these at init time:
+    </p>
+
+    <table>
+      <tr><th>Template PSB</th><th>Used For</th></tr>
+      <tr>
+        <td><code>system/config/struct_systemdata.psb</code></td>
+        <td>SYSTEM_DATA segment structure</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_systemdata_title.psb</code></td>
+        <td>TITLE_DATA segment structure (single title)</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_systemdata_titles.psb</code></td>
+        <td>TITLE_DATA structure (multi-title packages)</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_statedata.psb</code></td>
+        <td>EMU_STATE segment structure</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_statedata_l.psb</code></td>
+        <td>EMU_STATE_L segment structure (large states)</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_replaydata.psb</code></td>
+        <td>EMU_REPLAY segment structure</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_sound_play_list.psb</code></td>
+        <td>SOUND_PLAY_LIST segment structure</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_savedata_dummy.psb</code></td>
+        <td>Dummy/placeholder structure for reserved segments</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_sram_image.psb</code></td>
+        <td>SRAM cartridge RAM image structure</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_statedata_extend.psb</code></td>
+        <td>Extended state data fields</td>
+      </tr>
+      <tr>
+        <td><code>system/config/struct_setting_game_image.psb</code></td>
+        <td>Per-game settings structure</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Binary, not JSON</strong>
+      These template PSBs define the <em>schema</em> of each save data type.
+      The native <code>Struct</code> class uses them to create typed binary buffers.
+      The actual save data is written as raw binary, not as PSB/JSON.
+    </div>
+
+  </main>
+</body>
+</html>

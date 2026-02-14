@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Display Classes - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html" class="active">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Display Classes</h1>
+    <p class="page-desc">
+      Layer, Motion, and Indicator &mdash; the native C++ classes that Squirrel scripts
+      use to build and animate the entire m2engage UI.
+    </p>
+
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview &amp; Layer Tree</a></li>
+      <li><a href="#layer">Layer (Base Class)</a></li>
+      <li><a href="#layerfit">LayerFit</a></li>
+      <li><a href="#layerfolder">LayerFolder</a></li>
+      <li><a href="#scaled">ScaledLayer &amp; ScaledLayerFolder</a> (Squirrel wrappers)</li>
+      <li><a href="#motion">Motion (Animation Controller)</a></li>
+      <li><a href="#indicator">Indicator (Text Display)</a></li>
+      <li><a href="#emutask">EmuTask (Emulator Display)</a></li>
+      <li><a href="#patterns">Usage Patterns</a></li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <h2 id="overview">1. Overview &amp; Layer Tree</h2>
+
+    <p>
+      m2engage's UI is built as a tree of <strong>Layer</strong> objects. Each layer has
+      position, size, opacity, and transform properties. <strong>Motion</strong> objects
+      attach to layers to drive PSB animations. <strong>Indicator</strong> objects render
+      text on layers. All three are native C++ classes exposed to the Squirrel VM.
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">Layer Tree (typical title select screen)</span>
+
+  <span class="highlight">Root LayerFolder</span>
+    |
+    |-- <span class="hl-green">ScaledLayerFolder</span>  (menu layer folder, priority-based)
+    |     |
+    |     |-- <span class="hl-purple">ScaledLayer</span> m_layer  (PRI_BG)
+    |     |     |-- <span class="highlight">Motion</span> m_motion_bg  (chara="grandmenu", motion="main")
+    |     |     \-- <span class="highlight">Motion</span> m_pkgselect_motion[0..4]  (cover art carousel)
+    |     |
+    |     |-- <span class="hl-purple">ScaledLayer</span> m_layer_down  (PRI_BG_DOWN)
+    |     |     \-- <span class="highlight">Motion</span> m_motion_bg_down  (motion="main_down")
+    |     |
+    |     |-- <span class="hl-purple">ScaledLayer</span> m_layer_back  (PRI_BG_BACK)
+    |     |     \-- <span class="highlight">Motion</span> m_motion_bg_back  (motion="back")
+    |     |
+    |     \-- <span class="hl-purple">ScaledLayer</span> m_layerText  (PRI_TEXT)
+    |           |-- <span class="hl-blue">Indicator</span> m_caption  (font resource, centered)
+    |           |-- <span class="hl-blue">Indicator</span> m_guide    (font resource, centered)
+    |           \-- <span class="hl-blue">Indicator</span> m_text_Title  (game title text)
+    |
+    \-- <span class="hl-green">EmuTask</span>  (emulator display, separate from UI layers)
+    </div>
+
+    <p>
+      The workflow is always: <strong>create layer</strong> &rarr; <strong>register motion
+      resource</strong> (PSB) &rarr; <strong>create Motion on layer</strong> &rarr;
+      <strong>set chara/motion</strong> &rarr; <strong>progress()</strong> to render first frame.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="layer">2. Layer (Base Class)</h2>
+
+    <p>
+      The fundamental display node. All other layer types inherit from it. Created by
+      passing a parent layer (or <code>null</code> for root).
+    </p>
+
+    <h3>Position &amp; Size</h3>
+    <table>
+      <tr><th>Property</th><th>Getter / Setter</th><th>Description</th></tr>
+      <tr><td><code>x</code></td><td><code>getPosX() / setPosX(v)</code></td><td>X position</td></tr>
+      <tr><td><code>y</code></td><td><code>getPosY() / setPosY(v)</code></td><td>Y position</td></tr>
+      <tr><td><code>width</code></td><td><code>getWidth() / setWidth(v)</code></td><td>Width</td></tr>
+      <tr><td><code>height</code></td><td><code>getHeight() / setHeight(v)</code></td><td>Height</td></tr>
+      <tr><td><code>left</code></td><td><code>getLeft() / setLeft(v)</code></td><td>Left edge</td></tr>
+      <tr><td><code>right</code></td><td><code>getRight() / setRight(v)</code></td><td>Right edge</td></tr>
+      <tr><td><code>top</code></td><td><code>getTop() / setTop(v)</code></td><td>Top edge</td></tr>
+      <tr><td><code>bottom</code></td><td><code>getBottom() / setBottom(v)</code></td><td>Bottom edge</td></tr>
+    </table>
+
+    <h3>Transforms</h3>
+    <table>
+      <tr><th>Property</th><th>Methods</th><th>Description</th></tr>
+      <tr><td><code>angle</code></td><td><code>getAngleDeg() / setAngleDeg(deg)</code></td><td>Rotation in degrees</td></tr>
+      <tr><td></td><td><code>getAngleRad() / setAngleRad(rad)</code></td><td>Rotation in radians</td></tr>
+      <tr><td><code>scale</code></td><td><code>setScale(x, y) / setScaleX(x) / setScaleY(y)</code></td><td>Scale transform</td></tr>
+      <tr><td><code>zoom</code></td><td><code>getZoom() / setZoom(v)</code></td><td>Uniform zoom (affects both axes)</td></tr>
+      <tr><td><code>zoomX / zoomY</code></td><td><code>setZoomX(v) / setZoomY(v)</code></td><td>Per-axis zoom</td></tr>
+      <tr><td><code>slantX / slantY</code></td><td><code>setSlant(x, y)</code></td><td>Shear/skew transform</td></tr>
+      <tr><td><code>flipX / flipY</code></td><td><code>setFlip(x, y)</code></td><td>Mirror horizontally/vertically</td></tr>
+    </table>
+
+    <h3>Visual Properties</h3>
+    <table>
+      <tr><th>Property</th><th>Methods</th><th>Description</th></tr>
+      <tr><td><code>visible</code></td><td><code>getVisible() / setVisible(bool)</code></td><td>Show/hide layer</td></tr>
+      <tr><td><code>opacity</code></td><td><code>getOpacity() / setOpacity(0-255)</code></td><td>Transparency (0=invisible, 255=opaque)</td></tr>
+      <tr><td><code>priority</code></td><td><code>getPriority() / setPriority(int)</code></td><td>Draw order (higher = on top)</td></tr>
+      <tr><td><code>smoothing</code></td><td><code>getSmoothing() / setSmoothing(bool)</code></td><td>Texture filtering (bilinear)</td></tr>
+      <tr><td><code>brightness</code></td><td><code>getBrightness() / setBrightness(v)</code></td><td>Brightness adjustment</td></tr>
+      <tr><td><code>color</code></td><td><code>setColor(r, g, b, a)</code></td><td>Color tint</td></tr>
+    </table>
+
+    <h3>Color Effects</h3>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>setColorFilter(type)</code></td><td>Blend mode: NONE, BLEND, ADD, SUBTRACT, NEGATE</td></tr>
+      <tr><td><code>setColorWeight(r, g, b, a)</code></td><td>Per-channel color multiplier</td></tr>
+      <tr><td><code>setEmissiveColor(r, g, b, a)</code></td><td>Additive emission color</td></tr>
+      <tr><td><code>setOpacityMap(psb) / resetOpacityMap()</code></td><td>Alpha mask from PSB image</td></tr>
+      <tr><td><code>setClip(l, t, r, b)</code></td><td>Rectangular clipping region</td></tr>
+    </table>
+
+    <h3>Programmatic Animation</h3>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>animateOpacity(target, frames)</code></td><td>Fade to target opacity over N frames</td></tr>
+      <tr><td><code>animatePosition(x, y, frames)</code></td><td>Move to position over N frames</td></tr>
+      <tr><td><code>animateScale(x, y, frames)</code></td><td>Scale to target over N frames</td></tr>
+      <tr><td><code>animateAngleDeg(deg, frames)</code></td><td>Rotate to angle over N frames</td></tr>
+      <tr><td><code>animateZoom(target, frames)</code></td><td>Zoom to level over N frames</td></tr>
+      <tr><td><code>animateColorFilter(r, g, b, a, frames)</code></td><td>Animate color filter</td></tr>
+      <tr><td><code>animateColorWeight(r, g, b, a, frames)</code></td><td>Animate color weight</td></tr>
+      <tr><td><code>animateEmissiveColor(r, g, b, a, frames)</code></td><td>Animate emissive color</td></tr>
+    </table>
+
+    <h3>Other</h3>
+    <table>
+      <tr><th>Property / Method</th><th>Description</th></tr>
+      <tr><td><code>independentLayerInherit</code></td><td>If true, layer doesn't inherit parent transforms</td></tr>
+      <tr><td><code>registerMotionResource(psb_resource)</code></td><td>Register a PSB as motion source for this layer</td></tr>
+      <tr><td><code>getLayerVisible()</code></td><td>True only if this layer AND all parents are visible</td></tr>
+      <tr><td><code>setBranchVisible(bool)</code></td><td>Show/hide entire subtree</td></tr>
+      <tr><td><code>setOffset(x, y) / setCenter(x, y)</code></td><td>Transform origin offset</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="layerfit">3. LayerFit</h2>
+
+    <p>
+      Extends <code>Layer</code>. Automatically scales content to fit a target dimension
+      while preserving aspect ratio. Used for all full-screen UI layers.
+    </p>
+
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>setFitWidth(width)</code></td><td>Scale to fit target width</td></tr>
+      <tr><td><code>setFitHeight(height)</code></td><td>Scale to fit target height</td></tr>
+      <tr><td><code>getFitScale()</code></td><td>Returns the computed scale factor</td></tr>
+    </table>
+
+    <pre><code>// LayerFit constructor takes a parent layer
+local layer = LayerFit(parent_folder);
+layer.setFitHeight(720);  // Scale to 720p height</code></pre>
+
+    <!-- ============================================================ -->
+    <h2 id="layerfolder">4. LayerFolder</h2>
+
+    <p>
+      Extends <code>Layer</code>. A container that groups child layers into a hierarchy.
+      Transform operations on a folder cascade to all children (unless
+      <code>independentLayerInherit</code> is set).
+    </p>
+
+    <pre><code>local folder = LayerFolder(parent);  // null for root
+local child = Layer(folder);          // parented to folder
+folder.setAngleDeg(45);              // rotates all children too</code></pre>
+
+    <p>Other native layer types (less commonly used):</p>
+    <table>
+      <tr><th>Class</th><th>Description</th></tr>
+      <tr><td><code>LayerView</code></td><td>View/camera layer for viewport transforms</td></tr>
+      <tr><td><code>LayerProxy</code></td><td>Reference to another layer (no new geometry)</td></tr>
+      <tr><td><code>LayerEx</code></td><td>Extended layer with additional features</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="scaled">5. ScaledLayer &amp; ScaledLayerFolder</h2>
+
+    <p>
+      Squirrel wrapper classes defined in <code>utils.nut</code>.
+      These are used throughout the UI codebase instead of raw <code>LayerFit</code>/<code>LayerFolder</code>.
+    </p>
+
+    <h3>ScaledLayer (extends LayerFit)</h3>
+    <pre><code>class ScaledLayer extends LayerFit {
+    constructor(owner = null) {
+        LayerFit.constructor(owner ? owner : ::util_get_menu_layerFolder());
+        LayerFit.setFitHeight(SCREEN_YSIZE);  // auto-fit to 720p
+    }
+
+    function registerMotionResource(_motion_psb, _purge_psb = null)
+    function clip_coord_by_safe_area(_coord_x, _coord_y, _check_bounds)
+}</code></pre>
+    <p>
+      Default parent is the global menu layer folder. Automatically fits to screen height.
+      <code>registerMotionResource()</code> wraps the native method with optional PS3 memory purge.
+    </p>
+
+    <h3>ScaledLayerFolder (extends LayerFolder)</h3>
+    <pre><code>class ScaledLayerFolder extends LayerFolder {
+    rotate_mode = null;
+
+    constructor(_owner = null, _priority = null)
+    function set_rotate_mode(_mode)  // RotateMode.NONE/ROT_L/ROT_R/ROT_180
+}</code></pre>
+
+    <table>
+      <tr><th>RotateMode</th><th>Angle</th><th>Scale</th></tr>
+      <tr><td><code>NONE</code></td><td>0&deg;</td><td>1.0</td></tr>
+      <tr><td><code>ROT_L</code></td><td>-90&deg;</td><td>0.7</td></tr>
+      <tr><td><code>ROT_R</code></td><td>+90&deg;</td><td>0.7</td></tr>
+      <tr><td><code>ROT_180</code></td><td>180&deg;</td><td>1.0</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="motion">6. Motion (Animation Controller)</h2>
+
+    <p>
+      The key class for displaying PSB animations. A Motion is attached to a Layer and
+      drives it using data from a registered PSB resource. One layer can have multiple
+      motions (each with different <code>chara</code>/<code>motion</code> combos).
+    </p>
+
+    <h3>Creation &amp; Setup</h3>
+    <pre><code>// 1. Create layer and register PSB resource
+local layer = ScaledLayer();
+layer.registerMotionResource(rsc.find("040/motion/title_jp_titleselect_jp.psb.m"));
+
+// 2. Create Motion on the layer
+local motion = Motion(layer);
+
+// 3. Set character and animation name (from PSB)
+motion.chara = "grandmenu";      // character/animation set
+motion.motion = "main";           // animation within the set
+
+// 4. Configure
+motion.opacity = 255;
+motion.visible = true;
+motion.independentLayerInherit = true;
+
+// 5. Render first frame
+motion.progress();</code></pre>
+
+    <h3>Core Properties</h3>
+    <table>
+      <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>chara</code></td><td>string</td><td>Character/animation set name from PSB</td></tr>
+      <tr><td><code>motion</code></td><td>string</td><td>Animation name within the character set</td></tr>
+      <tr><td><code>visible</code></td><td>bool</td><td>Show/hide this motion</td></tr>
+      <tr><td><code>opacity</code></td><td>0&ndash;255</td><td>Transparency</td></tr>
+      <tr><td><code>independentLayerInherit</code></td><td>bool</td><td>Don't inherit parent transforms</td></tr>
+    </table>
+    <p>
+      Motion also inherits all Layer position, transform, color, and clipping properties
+      (<code>x</code>, <code>y</code>, <code>top</code>, <code>left</code>,
+      <code>angle</code>, <code>scale</code>, <code>flipX</code>, <code>smoothing</code>,
+      <code>priority</code>, <code>setColorFilter()</code>, etc.).
+    </p>
+
+    <h3>Animation Variables</h3>
+    <p>
+      PSB motions define <strong>variables</strong> that control which frame/state is displayed.
+      This is how the cover art carousel selects which game icon to show.
+    </p>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>setVariable(name, value)</code></td><td>Set a PSB-defined variable (triggers animation state change)</td></tr>
+      <tr><td><code>getVariable(name)</code></td><td>Read current value of a variable</td></tr>
+      <tr><td><code>getVariableFrame(name)</code></td><td>Get the frame number for a variable</td></tr>
+      <tr><td><code>setVariableFrame(name, frame)</code></td><td>Set variable to a specific frame</td></tr>
+      <tr><td><code>getVariableKeys()</code></td><td>List all available variable names</td></tr>
+    </table>
+
+    <pre><code>// Select which cover art to display (variable "pkg" defined in PSB)
+motion.setVariable("pkg", game_index);
+
+// Control UI state via variables
+motion.setVariable("lineup", 0);          // 0=JP, 1=US
+motion.setVariable("select", item_index);  // highlight selected item
+motion.setVariable("setting_icon_ani", 1); // trigger animation</code></pre>
+
+    <h3>Playback Control</h3>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>progress()</code></td><td>Advance animation by one frame (call per-frame)</td></tr>
+      <tr><td><code>play()</code></td><td>Start continuous playback</td></tr>
+      <tr><td><code>stop()</code></td><td>Stop playback</td></tr>
+      <tr><td><code>pause</code></td><td>Pause/resume (bool property)</td></tr>
+      <tr><td><code>getPlaying()</code></td><td>Check if currently playing</td></tr>
+      <tr><td><code>getAnimating()</code></td><td>Check if any animation is active</td></tr>
+    </table>
+
+    <h3>Sub-Layer Access</h3>
+    <p>
+      A Motion's PSB can define named sub-layers. Access them to modify individual parts:
+    </p>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>getLayerGetter(name)</code></td><td>Get property reader for named sub-layer</td></tr>
+      <tr><td><code>getLayerSetter(name)</code></td><td>Get property writer for named sub-layer</td></tr>
+      <tr><td><code>getLayerMotion(name)</code></td><td>Get the Motion of a named sub-layer</td></tr>
+      <tr><td><code>getLayerNames()</code></td><td>List all named sub-layers</td></tr>
+    </table>
+
+    <h3>Programmatic Animation</h3>
+    <p>
+      Motion inherits Layer's <code>animate*</code> methods, plus:
+    </p>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr><td><code>animateVariable(name, target, frames)</code></td><td>Animate a PSB variable over N frames</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="indicator">7. Indicator (Text Display)</h2>
+
+    <p>
+      Renders text on a layer using a loaded font resource. Fonts are PSB files loaded
+      via <code>Resource()</code>.
+    </p>
+
+    <h3>Creation</h3>
+    <pre><code>// Load font resource
+local font_path = conv_path("system/font/multi_font.psb");
+local rsc = Resource();
+rsc.load(font_path);
+while (rsc.loading) { yield null; }
+
+// Create indicator on a layer
+local indicator = Indicator(layer, rsc.find(font_path));
+indicator.visible = true;
+indicator.setRecognizeTag(true);       // enable tag parsing in text
+indicator.fontColor = 0xFFFFFFFF;      // white (ARGB)
+indicator.setAlignment(CONSOLE.ALIGNMENT_CENTER);
+indicator.print("Hello World");</code></pre>
+
+    <h3>Text Properties</h3>
+    <table>
+      <tr><th>Property / Method</th><th>Description</th></tr>
+      <tr><td><code>print(text)</code></td><td>Set and display text string</td></tr>
+      <tr><td><code>setText(text) / getText()</code></td><td>Alternative set/get for text</td></tr>
+      <tr><td><code>setTextMaxLength(n)</code></td><td>Limit maximum characters displayed</td></tr>
+      <tr><td><code>fontColor</code></td><td>Text color (ARGB integer, e.g., <code>0xFFFFFFFF</code>)</td></tr>
+      <tr><td><code>setFontColor(r, g, b, a)</code></td><td>Set color with separate channels</td></tr>
+      <tr><td><code>setFontScale(scale)</code></td><td>Uniform font size scale</td></tr>
+      <tr><td><code>setFontScaleX(s) / setFontScaleY(s)</code></td><td>Per-axis font scale</td></tr>
+      <tr><td><code>setAlignment(align)</code></td><td>Text alignment (see below)</td></tr>
+      <tr><td><code>setRecognizeTag(bool)</code></td><td>Enable/disable rich text tag parsing</td></tr>
+      <tr><td><code>setCoord(x, y)</code></td><td>Set text position</td></tr>
+      <tr><td><code>getWidth() / getHeight()</code></td><td>Measured text dimensions</td></tr>
+    </table>
+
+    <h3>Alignment Constants</h3>
+    <pre><code>CONSOLE.ALIGNMENT_LEFT
+CONSOLE.ALIGNMENT_CENTER
+CONSOLE.ALIGNMENT_RIGHT</code></pre>
+
+    <p>Indicator inherits all Layer visual properties (opacity, visible, color, etc.).</p>
+
+    <h3>IndicatorFitMaxWidth (Squirrel wrapper)</h3>
+    <p>
+      Extends Indicator. Auto-scales font to fit within a maximum width.
+      Defined in <code>utils.nut</code>.
+    </p>
+    <pre><code>local indicator = IndicatorFitMaxWidth(layer, font_resource, max_width);
+indicator.print("Long text that will be auto-scaled to fit");</code></pre>
+
+    <!-- ============================================================ -->
+    <h2 id="emutask">8. EmuTask (Emulator Display)</h2>
+
+    <p>
+      The native emulator display. Renders the actual game and handles emulator control.
+      Accessed via the global <code>::EmuTask</code> object and the <code>g_emu_task</code>
+      wrapper.
+    </p>
+
+    <table>
+      <tr><th>Property / Method</th><th>Description</th></tr>
+      <tr><td><code>visible / getVisible() / setVisible(bool)</code></td><td>Show/hide emulator display</td></tr>
+      <tr><td><code>opacity / getOpacity() / setOpacity(0-255)</code></td><td>Emulator display transparency</td></tr>
+      <tr><td><code>priority / setPriority(int)</code></td><td>Drawing order relative to UI layers</td></tr>
+      <tr><td><code>pause / getPause() / setPause(bool)</code></td><td>Pause/resume emulation</td></tr>
+      <tr><td><code>initialized</code></td><td>True when emulator is ready</td></tr>
+      <tr><td><code>smoothing / setSmoothing(bool)</code></td><td>Display filtering</td></tr>
+      <tr><td><code>brightness / setBrightness(v)</code></td><td>Display brightness</td></tr>
+      <tr><td><code>getExitCode()</code></td><td>Get game exit status</td></tr>
+      <tr><td><code>animateOpacity(target, frames)</code></td><td>Fade emulator display</td></tr>
+    </table>
+
+    <p>
+      The <code>EmuTaskWrapper</code> (Squirrel, in <code>emulator.nut</code>) adds
+      background sheet layers and substitution layers for screen settings preview.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="patterns">9. Usage Patterns</h2>
+
+    <h3>Full Layer + Motion Setup</h3>
+    <pre><code>// Load motion PSB resource
+local motion_path = conv_path("motion/title_jp_titleselect_jp.psb");
+local rsc = Resource();
+rsc.load(motion_path);
+while (rsc.loading) { yield null; }
+
+// Create layer, register resource
+local layer = ScaledLayer();
+layer.visible = true;
+layer.smoothing = true;
+layer.priority = PRI_BG;
+layer.registerMotionResource(rsc.find(motion_path));
+
+// Create motion on layer
+local motion = Motion(layer);
+motion.chara   = "grandmenu";
+motion.motion  = "main";
+motion.opacity = 255;
+motion.visible = true;
+motion.independentLayerInherit = true;
+motion.progress();  // render first frame
+
+// Control via variables
+motion.setVariable("pkg", 3);      // show game #3's cover
+motion.setVariable("lineup", 0);   // JP lineup</code></pre>
+
+    <h3>Text Display</h3>
+    <pre><code>// Layer for text (higher priority = drawn on top)
+local textLayer = ScaledLayer();
+textLayer.visible = true;
+textLayer.smoothing = true;
+textLayer.priority = PRI_TEXT;
+
+// Create indicator with font
+local indicator = Indicator(textLayer, rsc.find(font_path));
+indicator.visible = true;
+indicator.setRecognizeTag(true);
+indicator.fontColor = 0xFFFFFFFF;
+indicator.setAlignment(CONSOLE.ALIGNMENT_CENTER);
+indicator.print("R-TYPE");</code></pre>
+
+    <h3>Fade Animation</h3>
+    <pre><code>// Fade out over 30 frames
+motion.animateOpacity(0, 30);
+
+// Scale up over 60 frames
+motion.animateScale(2.0, 2.0, 60);
+
+// Rotate 360 degrees over 120 frames
+motion.animateAngleDeg(360, 120);</code></pre>
+
+    <h3>Per-Frame Update Loop</h3>
+    <pre><code>// In a coroutine-based game loop:
+while (running) {
+    motion.progress();           // advance animation
+    handle_input();
+    yield null;                  // yield to engine for rendering
+}</code></pre>
+
+    <div class="box box-info">
+      <strong>progress() is essential</strong>
+      You must call <code>progress()</code> on each Motion every frame for its animation
+      to advance. Without it, the motion stays frozen on its current frame. The
+      <code>yield null</code> at the end hands control back to the native engine, which
+      actually renders the layer tree to screen.
+    </div>
+
+  </main>
+</body>
+</html>

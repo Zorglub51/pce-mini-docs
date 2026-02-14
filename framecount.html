@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FrameCount - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html" class="active">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>FrameCount <span class="tag">Native</span></h1>
+    <p class="page-desc">
+      The <code>g_frameCount</code> global object &mdash; a native C++ <code>SQFrameCount</code>
+      class exposed to Squirrel via Sqrat binding. Controls application lifecycle, shutdown sequencing,
+      save state checking, and debug logging.
+    </p>
+
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#methods">Method Reference</a></li>
+      <li><a href="#shutdown">Shutdown Flow</a></li>
+      <li><a href="#gameplay">Gameplay Gating</a></li>
+      <li><a href="#save">Save State Checking</a></li>
+      <li><a href="#sources">Source File References</a></li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <h2 id="overview">1. Overview</h2>
+
+    <p>
+      <code>g_frameCount</code> is a global Squirrel object backed by the native C++
+      class <code>SQFrameCount</code> (bound via <a href="https://en.wikipedia.org/wiki/Sqrat">Sqrat</a>,
+      the Squirrel C++ binding library). The binary also references <code>MFrameCountTask</code>,
+      suggesting it runs as a persistent task within m2engage's frame loop.
+    </p>
+
+    <p>
+      It serves as the central coordination point for:
+    </p>
+    <ul>
+      <li><strong>Application lifecycle</strong> &mdash; shutdown detection and execution</li>
+      <li><strong>Gameplay state</strong> &mdash; gating shutdown during active menus</li>
+      <li><strong>Save state metadata</strong> &mdash; checking file existence, creating init markers</li>
+      <li><strong>Debug logging</strong> &mdash; writing trace messages to a log file</li>
+      <li><strong>Memory management</strong> &mdash; triggering Squirrel garbage collection</li>
+    </ul>
+
+    <!-- ============================================================ -->
+    <h2 id="methods">2. Method Reference</h2>
+
+    <table>
+      <tr>
+        <th>Method</th>
+        <th>Signature</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>logFileWrite(msg)</code></td>
+        <td><code>string &rarr; void</code></td>
+        <td>Write a message to the debug log file. Used extensively for execution flow tracing.</td>
+      </tr>
+      <tr>
+        <td><code>sqgc()</code></td>
+        <td><code>void &rarr; void</code></td>
+        <td>Trigger Squirrel VM garbage collection. Called once at app startup.</td>
+      </tr>
+      <tr>
+        <td><code>getFinishSeq()</code></td>
+        <td><code>void &rarr; int</code></td>
+        <td>Query the shutdown sequence state. Returns 0 for normal operation, &gt;0 when shutdown is requested (e.g., power button pressed).</td>
+      </tr>
+      <tr>
+        <td><code>setFinishSeq(seq)</code></td>
+        <td><code>int &rarr; void</code></td>
+        <td>Set the shutdown sequence state. Use <code>2</code> to request shutdown.</td>
+      </tr>
+      <tr>
+        <td><code>appFinish()</code></td>
+        <td><code>void &rarr; void</code></td>
+        <td>Terminate the application. Called after <code>setFinishSeq(2)</code> to execute the actual shutdown.</td>
+      </tr>
+      <tr>
+        <td><code>setGamePlay(status)</code></td>
+        <td><code>int &rarr; void</code></td>
+        <td>Set the gameplay status flag. <code>1</code> = gameplay/settings active, <code>0</code> = idle. Prevents shutdown during active menus.</td>
+      </tr>
+      <tr>
+        <td><code>initfileSave()</code></td>
+        <td><code>void &rarr; void</code></td>
+        <td>Create the save initialization marker file (<code>save/.game_noinit</code>). Called after the first-ever save state is created.</td>
+      </tr>
+      <tr>
+        <td><code>stateFileExist(fileid)</code></td>
+        <td><code>int &rarr; bool</code></td>
+        <td>Check if a save state file exists for the given file ID. Used by the title select screen to show save slot indicators.</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="shutdown">3. Shutdown Flow</h2>
+
+    <p>
+      m2engage detects hardware power button presses through <code>getFinishSeq()</code>.
+      Multiple scripts poll this value in their main loops. When a shutdown is detected,
+      the two-step sequence is:
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">Shutdown Sequence</span>
+
+  <span class="highlight">Main Loop</span> (mode_title_select / pause_main / settings)
+    |
+    |  Poll: local fseq = ::g_frameCount.<span class="hl-green">getFinishSeq</span>();
+    |  if (fseq &gt; 0) &rarr; shutdown detected
+    |
+  <span class="highlight">Shutdown Request</span>
+    |
+    |  ::g_frameCount.<span class="hl-green">setFinishSeq</span>(2);    // signal shutdown
+    |  ::g_frameCount.<span class="hl-green">appFinish</span>();         // execute shutdown
+    |
+  <span class="hl-purple">Application exits</span>
+    </div>
+
+    <h3>Polling Locations</h3>
+    <table>
+      <tr>
+        <th>Script</th>
+        <th>Context</th>
+      </tr>
+      <tr>
+        <td><code>mode_title_select.nut</code></td>
+        <td>Title selection main loop &mdash; checks for power-off during menu browsing</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_setting.nut</code></td>
+        <td>Settings menu &mdash; checks for power-off during settings interaction</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_settinglang.nut</code></td>
+        <td>Language selection &mdash; checks for power-off, handles shutdown with <code>setFinishSeq(2)</code> + <code>appFinish()</code></td>
+      </tr>
+      <tr>
+        <td><code>pause_main.nut</code></td>
+        <td>In-game pause menu &mdash; only logs, does not initiate shutdown from here</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="gameplay">4. Gameplay Gating</h2>
+
+    <p>
+      <code>setGamePlay()</code> acts as a gate to prevent shutdown while the user is
+      actively interacting with settings menus. The pattern:
+    </p>
+
+    <pre><code>// Entering settings screen
+::g_frameCount.setGamePlay(1);    // mark: user is in settings
+
+// ... settings menu logic ...
+
+// Leaving settings screen
+::g_frameCount.setGamePlay(0);    // mark: user left settings</code></pre>
+
+    <p>
+      This is only used in <code>mode_title_select_setting.nut</code>. The native code
+      presumably checks this flag before allowing <code>appFinish()</code> to proceed,
+      ensuring settings changes are saved before shutdown.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="save">5. Save State Checking</h2>
+
+    <h3>stateFileExist(fileid)</h3>
+
+    <p>
+      Used by the title select screen to display save slot indicators (small icons showing
+      which of the 4 save slots have data). The file ID is calculated from the game&rsquo;s
+      sorted index and the lineup offset:
+    </p>
+
+    <pre><code>// mode_title_select.nut, nameTextUpdate()
+local sortindexLineup = s_indextable[selectindex] + getLinenpIndexOffset();
+for (local i = 0; i &lt; 4; i++) {
+    local fileid = i + (sortindexLineup * 4);
+    if (::g_frameCount.stateFileExist(fileid) == true) {
+        // set saveslot indicator visible
+    }
+}</code></pre>
+
+    <p>
+      See <a href="save-system.html#slot-numbering">Save System &rarr; Per-Game Slot Numbering</a>
+      for the full slot calculation details.
+    </p>
+
+    <div class="box box-warning">
+      <strong>Limitation</strong>
+      <code>stateFileExist()</code> takes only a <code>fileid</code> parameter &mdash; it does
+      <strong>not</strong> accept the segment type (011 vs 012). It is unclear how it determines
+      which file type to check. The original commented-out code used
+      <code>BackupStatedata.check_exist_state_data(fileid)</code> instead, which goes through
+      the backup manager and correctly handles segment types.
+    </div>
+
+    <h3>initfileSave()</h3>
+
+    <p>
+      Creates the <code>save/.game_noinit</code> sentinel file, marking the save directory
+      as initialized (at least one save state has been created). Called from
+      <code>pause_main.nut</code> after the first save:
+    </p>
+
+    <pre><code>// pause_main.nut, after saving state data:
+::g_systemdata.get_value(SystemDataValueIndex.BACKUP_FLAGS).set_73_stateSavet(1);
+// "Once state is saved even once, create initialization file"
+::g_frameCount.initfileSave();</code></pre>
+
+    <p>
+      The complementary <code>initfileDelete()</code> function also exists in the binary
+      (presumably called during factory reset / data initialization) but is not used in
+      any known Squirrel script.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="sources">6. Source File References</h2>
+
+    <table>
+      <tr>
+        <th>Script</th>
+        <th>Methods Used</th>
+      </tr>
+      <tr>
+        <td><code>system/script/mode_title_select.nut</code></td>
+        <td>
+          <code>logFileWrite</code>,
+          <code>sqgc</code>,
+          <code>getFinishSeq</code>,
+          <code>setFinishSeq</code>,
+          <code>appFinish</code>,
+          <code>stateFileExist</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>system/script/mode_title_select_setting.nut</code></td>
+        <td>
+          <code>getFinishSeq</code>,
+          <code>setGamePlay</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>system/script/mode_title_select_settinglang.nut</code></td>
+        <td>
+          <code>getFinishSeq</code>,
+          <code>setFinishSeq</code>,
+          <code>appFinish</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>system/script/pause_main.nut</code></td>
+        <td>
+          <code>logFileWrite</code>,
+          <code>initfileSave</code>
+        </td>
+      </tr>
+    </table>
+
+    <h3>Binary Identifiers</h3>
+    <p>
+      Strings found in the <code>m2engage</code> ELF binary related to this class:
+    </p>
+    <ul>
+      <li><code>SQFrameCount</code> &mdash; Sqrat class registration name</li>
+      <li><code>15MFrameCountTask</code> &mdash; C++ RTTI type name (task runner)</li>
+      <li><code>stateFileExist</code>, <code>initfileSave</code>, <code>initfileDelete</code> &mdash; registered method names</li>
+      <li><code>logFileWrite</code>, <code>sqgc</code>, <code>appFinish</code> &mdash; registered method names</li>
+    </ul>
+
+  </main>
+</body>
+</html>

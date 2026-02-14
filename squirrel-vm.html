@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Squirrel VM &amp; Filesystem - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html" class="active">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Squirrel VM &amp; Filesystem</h1>
+    <p class="page-desc">
+      Complete reference for filesystem access, resource loading, and I/O functions
+      available to Squirrel scripts running inside m2engage.
+    </p>
+
+    <div class="box box-warning">
+      <strong>No Direct File I/O</strong>
+      The Squirrel VM in m2engage has <strong>no direct filesystem access</strong>.
+      Standard Squirrel I/O functions (<code>dofile</code>, <code>loadfile</code>,
+      <code>compilestring</code>, <code>io.open</code>) are stripped from the VM.
+      All file operations go through native C++ bindings exposed as global functions
+      or class methods.
+    </div>
+
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#path-resolution">Path Resolution</a> &mdash; <code>conv_path()</code>, <code>conv_checked_path()</code></li>
+      <li><a href="#resource-loading">Resource &amp; Config Loading</a> &mdash; <code>Resource</code>, <code>util_load_config()</code></li>
+      <li><a href="#script-loading">Script Loading</a> &mdash; <code>util_load_script()</code></li>
+      <li><a href="#file-existence">File Existence Checks</a> &mdash; <code>FileUtil</code>, <code>GameContent</code></li>
+      <li><a href="#save-load">Save &amp; Load Functions</a> &mdash; <code>host_save_*</code>, <code>host_load_*</code></li>
+      <li><a href="#directory-listing">Directory Listing</a> &mdash; <code>host_listup_files()</code></li>
+      <li><a href="#no-file-reading">Reading File Contents</a> &mdash; What you can and cannot read</li>
+      <li><a href="#binary-util">Binary &amp; Struct Utilities</a> &mdash; <code>BinaryUtil</code>, <code>Struct</code></li>
+      <li><a href="#path-parsing">Path String Parsing</a> &mdash; <code>fileparse()</code></li>
+      <li><a href="#resource-cache">ResourceCache Class</a></li>
+      <li><a href="#limitations">Limitations &amp; What You Cannot Do</a></li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <h2 id="path-resolution">1. Path Resolution</h2>
+    <p>
+      m2engage uses a virtual path system that maps short relative paths to actual
+      filesystem locations. The mapping depends on the active <code>dev_id</code>
+      (title pack) and configuration rules in <code>game_content.psb</code>.
+    </p>
+
+    <h3>conv_path(short_path, dev_id)</h3>
+    <p>
+      Converts a relative path to a full path by prepending <code>system/</code>
+      or <code>{dev_id}/</code> based on path classification rules.
+    </p>
+    <pre><code>// Signature
+function conv_path(short_path, dev_id = 0)
+// Returns: string (full path)
+
+// Examples
+conv_path("config/title_mode_top.psb")     // &rarr; "040/config/title_mode_top.psb"
+conv_path("script/utils.nut")              // &rarr; "system/script/utils.nut"
+conv_path("state/save.dat")               // &rarr; "040/state/save.dat"
+conv_path("motion/bg01.psb", 42)          // &rarr; "042/motion/bg01.psb"</code></pre>
+
+    <h4>Resolution Rules</h4>
+    <p>
+      Three config lists in <code>game_content.psb</code> control where paths resolve:
+    </p>
+    <table>
+      <tr>
+        <th>Config Key</th>
+        <th>Behavior</th>
+        <th>Values (PCE Mini)</th>
+      </tr>
+      <tr>
+        <td><code>forceAbsolutePath</code></td>
+        <td>Paths starting with these prefixes are always <code>system/</code></td>
+        <td><code>["system/"]</code></td>
+      </tr>
+      <tr>
+        <td><code>titleOnlyDir</code></td>
+        <td>Paths starting with these prefixes are always <code>{dev_id}/</code></td>
+        <td><code>["manual/", "state/"]</code></td>
+      </tr>
+      <tr>
+        <td><code>titleOnlyFile</code></td>
+        <td>Specific filenames that are always title-only</td>
+        <td><code>[]</code> (empty)</td>
+      </tr>
+    </table>
+    <p>
+      For paths not matching any rule, <code>conv_path()</code> first checks
+      <code>{dev_id}/</code>, then falls back to <code>system/</code>.
+    </p>
+
+    <div class="box box-danger">
+      <strong>Gotcha: "script/" resolves to system/</strong>
+      The <code>script/</code> prefix is NOT in <code>titleOnlyDir</code>, so
+      <code>conv_path("script/pack_config.nut")</code> resolves to
+      <code>system/script/pack_config.nut</code>, not <code>042/script/pack_config.nut</code>.
+      To load title-specific scripts, build the path explicitly:
+      <pre><code>local path = format("%03d/script/pack_config.nut", ::get_current_title_dev_id());</code></pre>
+    </div>
+
+    <h3>conv_checked_path(short_path, dev_id, bDeleteExtM)</h3>
+    <p>
+      Like <code>conv_path()</code> but verifies the file actually exists.
+      Returns <code>null</code> if the file is not found.
+    </p>
+    <pre><code>// Signature
+function conv_checked_path(short_path, dev_id = 0, bDeleteExtM = false)
+// Returns: string (full path) or null
+
+// Check order:
+// 1. FileUtil.getExistFileDirInMountArchive(path)  &mdash; mounted archives
+// 2. GameContent.getExistFileDir(path)              &mdash; extracted directories
+// Returns: directory_prefix + short_path, or null</code></pre>
+
+    <div class="box box-info">
+      <strong>When to use which</strong>
+      Use <code>conv_path()</code> when you know the file exists (e.g., loading a required config).
+      Use <code>conv_checked_path()</code> when the file may not exist and you need to check
+      (e.g., optional pack_config.nut overrides, platform-specific resources).
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="resource-loading">2. Resource &amp; Config Loading</h2>
+
+    <h3>Resource Class (Native)</h3>
+    <p>
+      The primary mechanism for loading PSB files. Resources are loaded asynchronously.
+    </p>
+    <pre><code>// Create and load
+local rsc = Resource();
+rsc.load("040/config/title_mode_top.psb.m");
+
+// Wait for completion (in coroutine)
+while (rsc.loading) { yield null; }
+
+// Access data
+local data = rsc.find("040/config/title_mode_top.psb.m");
+local items = data.root.items;
+
+// Cleanup
+rsc.unload();</code></pre>
+
+    <table>
+      <tr><th>Method / Property</th><th>Description</th></tr>
+      <tr>
+        <td><code>Resource()</code></td>
+        <td>Constructor. Creates a new resource loader instance.</td>
+      </tr>
+      <tr>
+        <td><code>.load(path, ...)</code></td>
+        <td>Begin loading one or more PSB files asynchronously. Accepts multiple path arguments.</td>
+      </tr>
+      <tr>
+        <td><code>.loading</code></td>
+        <td>Boolean property. <code>true</code> while any resource is still loading.</td>
+      </tr>
+      <tr>
+        <td><code>.find(path)</code></td>
+        <td>Retrieve loaded data by path. Returns object with <code>.root</code> table.</td>
+      </tr>
+      <tr>
+        <td><code>.unload()</code></td>
+        <td>Release all loaded resources.</td>
+      </tr>
+    </table>
+
+    <h3>util_load_config(path)</h3>
+    <p>
+      High-level wrapper that loads a PSB config file synchronously (with internal caching).
+      Returns a deep copy of the <code>.root</code> table &mdash; safe to modify.
+    </p>
+    <pre><code>// Typical usage
+local config = ::util_load_config( ::conv_path("config/title_mode_top.psb") );
+local titleNum = config.titleNum;
+local items = config.items;</code></pre>
+    <p>
+      Internally uses <code>ResourceCache</code> (see <a href="#resource-cache">section 9</a>)
+      to avoid reloading the same file multiple times. The returned table is a deep copy via
+      <code>copy_PSBValue()</code>, so modifications do not affect the cache.
+    </p>
+
+    <h3>util_load_psb_get_by_instance(path)</h3>
+    <p>
+      Variant that returns the raw PSB resource instance (not a copy). Used when you need
+      to reference the same data from multiple places without copying overhead.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="script-loading">3. Script Loading</h2>
+
+    <h3>util_load_script(path)</h3>
+    <p>
+      Compiles and executes a Squirrel <code>.nut</code> script file. Functions and classes
+      defined in the script become available in the root table. This is the only way to
+      dynamically load code at runtime.
+    </p>
+    <pre><code>// Load a mode script
+::util_load_script( ::conv_path("script/mode_normal.nut") );
+
+// Load a pack-specific script (explicit path, bypassing conv_path)
+local pack_path = format("%03d/script/pack_config.nut", dev_id);
+local checked = ::conv_checked_path(pack_path);
+if (checked != null) {
+    ::util_load_script(checked);
+    // Functions defined in pack_config.nut are now callable
+    local config = ::get_pack_title_mode_top();
+}</code></pre>
+
+    <div class="box box-info">
+      <strong>Implementation note</strong>
+      <code>util_load_script()</code> is a native C++ function registered into the VM,
+      not a Squirrel-defined wrapper. It is the m2engage equivalent of Squirrel's
+      standard <code>dofile()</code>, which has been removed from this VM.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="file-existence">4. File Existence Checks</h2>
+    <p>
+      Two native classes provide file existence checking. Both return a directory prefix
+      string if found, or <code>null</code> if not.
+    </p>
+
+    <h3>FileUtil.getExistFileDirInMountArchive(path)</h3>
+    <p>
+      Checks if a file exists within mounted archives (e.g., <code>alldata.bin</code>).
+    </p>
+    <pre><code>local dir = FileUtil.getExistFileDirInMountArchive("040/config/title_prof.psb.m");
+// Returns: "" (empty string = found at root) or null (not found)</code></pre>
+
+    <h3>GameContent.getExistFileDir(path)</h3>
+    <p>
+      Checks if a file exists in extracted game content directories on the filesystem.
+    </p>
+    <pre><code>local dir = GameContent.getExistFileDir("042/script/pack_config.nut");
+// Returns: directory prefix string or null</code></pre>
+
+    <p>
+      <code>conv_checked_path()</code> calls both in sequence (archive first, then filesystem),
+      so you rarely need to call these directly.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="save-load">5. Save &amp; Load Functions</h2>
+    <p>
+      These native functions handle emulator state persistence. They operate on
+      opaque binary data managed by the native emulator core, not on arbitrary files.
+    </p>
+
+    <h3>Emulator State (Save States)</h3>
+    <table>
+      <tr><th>Function</th><th>Description</th></tr>
+      <tr>
+        <td><code>host_save_emulator_statedata()</code></td>
+        <td>Save current emulator state to default slot</td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_statedata(select_by_list)</code></td>
+        <td>Load emulator state (optionally via selection UI)</td>
+      </tr>
+      <tr>
+        <td><code>host_save_emulator_statedata_filename(name)</code></td>
+        <td>Save state to a named file</td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_statedata_filename(name)</code></td>
+        <td>Load state from a named file</td>
+      </tr>
+    </table>
+
+    <h3>Replay Data</h3>
+    <table>
+      <tr><th>Function</th><th>Description</th></tr>
+      <tr>
+        <td><code>host_save_emulator_replaydata(no_header)</code></td>
+        <td>Save input replay data</td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_replaydata()</code></td>
+        <td>Load input replay data</td>
+      </tr>
+      <tr>
+        <td><code>host_save_emulator_replaydata_filename(name)</code></td>
+        <td>Save replay to named file</td>
+      </tr>
+      <tr>
+        <td><code>host_load_emulator_replaydata_filename(name)</code></td>
+        <td>Load replay from named file</td>
+      </tr>
+    </table>
+
+    <h3>Screenshots &amp; Struct Images</h3>
+    <table>
+      <tr><th>Function</th><th>Description</th></tr>
+      <tr>
+        <td><code>host_save_screenshot(capture)</code></td>
+        <td>Save screenshot bitmap to file</td>
+      </tr>
+      <tr>
+        <td><code>host_save_statedata_image(struct, name)</code></td>
+        <td>Save state thumbnail image</td>
+      </tr>
+      <tr>
+        <td><code>host_load_statedata_image(struct, name)</code></td>
+        <td>Load state thumbnail image into struct</td>
+      </tr>
+      <tr>
+        <td><code>host_save_sqstruct_image(struct, name)</code></td>
+        <td>Save Squirrel struct as binary blob</td>
+      </tr>
+      <tr>
+        <td><code>host_load_sqstruct_image(struct, name)</code></td>
+        <td>Load binary blob into Squirrel struct</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>EmuTask wrapper</strong>
+      Many of these functions are also available through the <code>g_emu_task</code>
+      wrapper object (e.g., <code>g_emu_task.host_save_statedata_image()</code>),
+      which queues operations through the emulator task system for thread safety.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="directory-listing">6. Directory Listing</h2>
+
+    <h3>host_listup_files(directory)</h3>
+    <p>
+      Lists files in a directory. Returns an array of filename strings, or <code>null</code>
+      if the directory doesn't exist. This is a native C++ function &mdash; the
+      <strong>only</strong> way to enumerate directory contents from Squirrel.
+    </p>
+    <pre><code>// Only known usage in the codebase (emulator.nut:1500)
+local file_lists = ::g_emu_task.host_listup_files(".");
+if (null != file_lists) {
+    for (local no = 0; no &lt; file_lists.len(); no++) {
+        if (file_lists[no].find(base_name) != null) {
+            load_lists.append(file_lists[no]);
+        }
+    }
+}</code></pre>
+
+    <div class="box box-info">
+      <strong>Practical details</strong>
+      <ul style="margin-top:8px; margin-bottom:0">
+        <li>Returns <strong>flat filenames</strong> (not full paths, not recursive)</li>
+        <li>Only used with <code>"."</code> in practice &mdash; relative to m2engage working directory</li>
+        <li>No wildcard/glob support &mdash; filtering must be done in Squirrel (e.g., <code>.find()</code>)</li>
+        <li>No way to distinguish files from directories in the returned list</li>
+        <li>Available via <code>g_emu_task.host_listup_files()</code> (thread-safe)</li>
+      </ul>
+    </div>
+
+    <div class="box box-warning">
+      <strong>Limited scope</strong>
+      This function operates relative to the m2engage working directory.
+      It cannot enumerate arbitrary filesystem paths outside the game content structure.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="no-file-reading">6b. Reading File Contents</h2>
+
+    <div class="box box-danger">
+      <strong>No general-purpose file reading</strong>
+      There is <strong>no function</strong> to read the contents of a text file, JSON file,
+      or arbitrary binary file from Squirrel scripts. The complete list of
+      <code>host_*</code> functions registered in the m2engage binary is:
+      <pre style="margin-top:12px"><code>host_listup_files             # directory listing
+host_save_statedata_image     # save emulator state (opaque binary)
+host_load_statedata_image     # load emulator state (opaque binary)
+host_save_statedata_rawimage  # save raw state image
+host_load_statedata_rawimage  # load raw state image
+host_save_sqstruct_image      # save Struct to file
+host_load_sqstruct_image      # load Struct from file
+host_save_sram_image          # save SRAM data</code></pre>
+    </div>
+
+    <p>
+      All <code>host_load_*</code> functions load <strong>opaque binary data</strong>
+      into native <code>Struct</code> objects &mdash; not into Squirrel strings or tables.
+      They are designed for emulator state persistence, not for reading configuration
+      or data files.
+    </p>
+
+    <h3>How data gets into Squirrel</h3>
+    <p>
+      There are exactly two paths for getting file data into Squirrel scripts:
+    </p>
+    <table>
+      <tr><th>Mechanism</th><th>File Types</th><th>Returns</th></tr>
+      <tr>
+        <td><code>util_load_config()</code> / <code>Resource()</code></td>
+        <td><code>.psb.m</code> files (encrypted PSB)</td>
+        <td>Squirrel table (key-value data from PSB)</td>
+      </tr>
+      <tr>
+        <td><code>util_load_script()</code></td>
+        <td><code>.nut</code> / <code>.nut.m</code> files (Squirrel scripts)</td>
+        <td>Executes code &mdash; functions/classes become available in root table</td>
+      </tr>
+    </table>
+
+    <p>
+      If you need to get custom data into the VM, you have two options:
+    </p>
+    <ol>
+      <li><strong>Pack it as a PSB</strong> &mdash; Convert JSON to <code>.psb.m</code> using
+          <code>mzstool.py</code>, then load with <code>util_load_config()</code></li>
+      <li><strong>Encode it in a .nut script</strong> &mdash; Define data as Squirrel table
+          literals in a <code>.nut</code> file, then execute with <code>util_load_script()</code>.
+          This is the approach used by <a href="building.html">dynamic pack configs</a>
+          (<code>pack_config.nut</code>).</li>
+    </ol>
+
+    <div class="box box-info">
+      <strong>compilestring()</strong>
+      The string <code>"compilestring"</code> exists in the m2engage binary, suggesting it
+      may be partially present. However, it is <strong>not usable</strong> from scripts
+      in practice &mdash; standard Squirrel I/O registration is stripped, and no script in
+      the codebase attempts to use it.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="binary-util">7. Binary &amp; Struct Utilities</h2>
+
+    <h3>Struct Class (Native)</h3>
+    <p>
+      Wraps a loaded PSB resource as a typed binary structure with field access.
+    </p>
+    <pre><code>// Create from loaded resource
+local st = Struct(resource_data);
+local root = st.getRoot();
+local field = st["root"]["fieldname"];</code></pre>
+
+    <h3>BinaryUtil (Native)</h3>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr>
+        <td><code>BinaryUtil.Struct2Struct(dst, src)</code></td>
+        <td>Copy binary data between two Struct instances</td>
+      </tr>
+      <tr>
+        <td><code>BinaryUtil.StoreBitmapImage(capture, field, w, h, pitch)</code></td>
+        <td>Store bitmap pixel data into a struct field</td>
+      </tr>
+    </table>
+
+    <h3>Table/Struct Conversion (Squirrel)</h3>
+    <table>
+      <tr><th>Function</th><th>Description</th></tr>
+      <tr>
+        <td><code>copy_PSBValue(src)</code></td>
+        <td>Deep copy any PSB value (table, array, string, number)</td>
+      </tr>
+      <tr>
+        <td><code>copy_Struct2Table(struct)</code></td>
+        <td>Convert a native Struct to a plain Squirrel table</td>
+      </tr>
+      <tr>
+        <td><code>setField_Table2Struct(dst, src)</code></td>
+        <td>Write table field values into a Struct&rsquo;s fields</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="path-parsing">8. Path String Parsing</h2>
+
+    <h3>fileparse(pathname)</h3>
+    <p>
+      Splits a file path string into its components. Defined in Squirrel
+      (<code>utils.nut</code>), not native.
+    </p>
+    <pre><code>// Signature
+function fileparse(pathname)
+// Returns: { path = "dir/", name = "filename", ext = ".ext" }
+
+// Examples
+fileparse("system/config/title.psb")
+// &rarr; { path: "system/config/", name: "title", ext: ".psb" }
+
+fileparse("roms/game.pce")
+// &rarr; { path: "roms/", name: "game", ext: ".pce" }</code></pre>
+
+    <!-- ============================================================ -->
+    <h2 id="resource-cache">9. ResourceCache Class</h2>
+    <p>
+      A Squirrel class (defined in <code>utils.nut</code>) that manages
+      <code>Resource()</code> instances with path-based caching. Avoids reloading
+      PSB files that are already in memory.
+    </p>
+    <pre><code>class ResourceCache {
+    m_rsc = null;       // Internal Resource() instance
+    m_path = [];        // Currently cached path list
+
+    function init(_path)    // Load path or array of paths (skips if unchanged)
+    function get(_path)     // Get loaded resource by path (.root to access data)
+}</code></pre>
+    <p>
+      Global instances used by the system:
+    </p>
+    <table>
+      <tr><th>Instance</th><th>Purpose</th></tr>
+      <tr>
+        <td><code>s_rsc_game_content</code></td>
+        <td>Caches game content config PSBs (title_prof, title_session, etc.)</td>
+      </tr>
+      <tr>
+        <td><code>s_rsc_title</code></td>
+        <td>Caches title-specific resources</td>
+      </tr>
+      <tr>
+        <td><code>s_loaded_config</code></td>
+        <td>Table-based cache for <code>util_load_config()</code> results (path &rarr; data)</td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 id="limitations">10. Limitations &amp; What You Cannot Do</h2>
+
+    <h3>Stripped from the VM</h3>
+    <table>
+      <tr><th>Standard Squirrel Feature</th><th>Status</th></tr>
+      <tr>
+        <td><code>dofile(path)</code></td>
+        <td>Removed. Use <code>util_load_script()</code> instead.</td>
+      </tr>
+      <tr>
+        <td><code>loadfile(path)</code></td>
+        <td>Removed. No equivalent.</td>
+      </tr>
+      <tr>
+        <td><code>compilestring(code)</code></td>
+        <td>Removed. Cannot compile code from strings at runtime.</td>
+      </tr>
+      <tr>
+        <td><code>io.open()</code> / <code>file()</code></td>
+        <td>Removed. No direct file read/write.</td>
+      </tr>
+      <tr>
+        <td><code>blob()</code> for file I/O</td>
+        <td>Removed. Blobs exist in-memory only (via BinaryUtil).</td>
+      </tr>
+    </table>
+
+    <h3>Cannot Do</h3>
+    <ul>
+      <li><strong>Read arbitrary files</strong> &mdash; Cannot open/read files outside the PSB/resource system</li>
+      <li><strong>Write arbitrary files</strong> &mdash; Only save state functions write to disk</li>
+      <li><strong>Create directories</strong> &mdash; No <code>mkdir</code> equivalent</li>
+      <li><strong>Delete files</strong> &mdash; No <code>remove</code> / <code>unlink</code></li>
+      <li><strong>Enumerate arbitrary directories</strong> &mdash; <code>host_listup_files()</code> is limited to game content paths</li>
+      <li><strong>Network I/O</strong> &mdash; No sockets, HTTP, or network access</li>
+      <li><strong>Execute system commands</strong> &mdash; No <code>system()</code> or <code>popen()</code></li>
+      <li><strong>Dynamic code compilation</strong> &mdash; No <code>eval</code> or runtime code generation</li>
+    </ul>
+
+    <h3>Squirrel Version</h3>
+    <p>
+      m2engage embeds <strong>Squirrel 2.2.4</strong> (not the current 3.x series).
+      This means some newer Squirrel features are unavailable. The VM is statically
+      linked into the m2engage binary &mdash; there is no external <code>.so</code>
+      or <code>.dll</code>.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2>Summary Diagram</h2>
+
+    <div class="diagram">
+<span class="hl-blue">Squirrel VM File Access Architecture</span>
+
+  <span class="highlight">Squirrel Script</span>
+    |
+    |-- <span class="hl-green">Path Resolution</span>
+    |     |-- conv_path(short)           &rarr; full path string
+    |     |-- conv_checked_path(short)   &rarr; full path or null
+    |     \-- fileparse(path)            &rarr; {path, name, ext}
+    |
+    |-- <span class="hl-green">Resource Loading (PSB)</span>
+    |     |-- util_load_config(path)     &rarr; table (deep copy)
+    |     |-- Resource().load(path)      &rarr; async PSB loading
+    |     |-- Resource().find(path)      &rarr; loaded data
+    |     \-- ResourceCache              &rarr; manages cache
+    |
+    |-- <span class="hl-green">Script Loading</span>
+    |     \-- util_load_script(path)     &rarr; compile + execute .nut
+    |
+    |-- <span class="hl-green">File Existence</span>
+    |     |-- FileUtil.getExistFileDirInMountArchive(path)
+    |     \-- GameContent.getExistFileDir(path)
+    |
+    |-- <span class="hl-green">Save/Load (Emulator)</span>
+    |     |-- host_save_emulator_statedata[_filename]()
+    |     |-- host_load_emulator_statedata[_filename]()
+    |     |-- host_save/load_emulator_replaydata[_filename]()
+    |     \-- host_save/load_sqstruct_image()
+    |
+    \-- <span class="hl-green">Directory Listing</span>
+          \-- host_listup_files(dir)     &rarr; [filenames]
+
+  <span class="hl-purple">Native C++ Layer</span>  (opaque to scripts)
+    |-- Reads from extracted dirs OR alldata.bin archive
+    |-- MZS decryption (XOR + zstd) handled transparently
+    \-- Write operations limited to state/ directory
+    </div>
+
+    <h2>Key Constants &amp; Config Paths</h2>
+    <table>
+      <tr><th>Constant</th><th>Resolves To</th></tr>
+      <tr>
+        <td><code>CONFIG_GAME_CONTENT_PATH</code></td>
+        <td><code>system/config/game_content.psb</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_SYSTEM_PROFILE_PATH</code></td>
+        <td><code>system/config/system_prof.psb</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_TITLE_PROFILE_PATH</code></td>
+        <td><code>config/title_prof.psb</code> &rarr; <code>{dev_id}/config/title_prof.psb</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_TITLE_PROFILE_SPEC_PATH</code></td>
+        <td><code>config/title_prof_specdepend.psb</code> &rarr; <code>{dev_id}/config/...</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_TITLE_SESSION_PATH</code></td>
+        <td><code>config/title_session.psb</code> &rarr; <code>{dev_id}/config/...</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_TITLE_MENU_STRING_PATH</code></td>
+        <td><code>config/title_menu_string.psb</code> &rarr; <code>{dev_id}/config/...</code></td>
+      </tr>
+      <tr>
+        <td><code>CONFIG_NOTICE_PATH</code></td>
+        <td><code>system/config/notice.psb</code></td>
+      </tr>
+    </table>
+
+    <h2>GameContent Helper Methods</h2>
+    <p>
+      Additional <code>GameContent</code> class methods not directly related to file I/O
+      but commonly used alongside path operations:
+    </p>
+    <table>
+      <tr><th>Method</th><th>Description</th></tr>
+      <tr>
+        <td><code>GameContent.getPackageDevID()</code></td>
+        <td>Returns the base package dev_id (always 40 for PCE Mini)</td>
+      </tr>
+      <tr>
+        <td><code>GameContent.setVirtualDevID(id)</code></td>
+        <td>Override dev_id for platform virtualization</td>
+      </tr>
+      <tr>
+        <td><code>GameContent.checkFreeSpace()</code></td>
+        <td>Returns available disk space in KB</td>
+      </tr>
+      <tr>
+        <td><code>GameContent.showNoSpaceErrorDialog(kb, blocking)</code></td>
+        <td>Display disk space error to user</td>
+      </tr>
+    </table>
+
+  </main>
+</body>
+</html>

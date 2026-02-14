@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MZS / PSB Format - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html" class="active">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>MZS / PSB Format</h1>
+    <p class="page-desc">
+      The encryption wrapper and binary config format used by all m2engage data files.
+    </p>
+
+    <h2>File Extension Convention</h2>
+    <table>
+      <tr><th>Extension</th><th>Contents</th></tr>
+      <tr><td><code>.psb.m</code></td><td>MZS-encrypted PSB config/motion file</td></tr>
+      <tr><td><code>.nut.m</code></td><td>MZS-encrypted Squirrel script</td></tr>
+      <tr><td><code>.psb</code></td><td>Raw (decrypted) PSB binary</td></tr>
+      <tr><td><code>.nut</code></td><td>Raw Squirrel source code</td></tr>
+    </table>
+
+    <h2>MZS Encryption Layer</h2>
+    <p>
+      The <code>.m</code> suffix indicates MZS encryption. This is a simple two-step process:
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">MZS File Structure</span>
+
+  +-----------+------------------------------------------+
+  | <span class="highlight">Header</span>    | magic: "mzs\0" (4 bytes)                |
+  |           | compressed_size (4 bytes, little-endian)  |
+  +-----------+------------------------------------------+
+  | <span class="hl-green">Payload</span>   | XOR-encrypted zstd-compressed data       |
+  +-----------+------------------------------------------+
+
+<span class="hl-blue">Decryption Pipeline</span>:
+  .psb.m file  ──<span class="highlight">XOR decrypt</span>──>  zstd blob  ──<span class="hl-green">decompress</span>──>  .psb binary
+
+<span class="hl-blue">Encryption Pipeline</span>:
+  .psb binary  ──<span class="hl-green">zstd compress</span>──>  zstd blob  ──<span class="highlight">XOR encrypt</span>──>  .psb.m file
+    </div>
+
+    <h3>XOR Cipher</h3>
+    <p>
+      The encryption is a simple repeating XOR with a key derived from the filename:
+    </p>
+    <pre><code>Key base: "8!7ZZnJAr/wfc"
+Key length: 131 bytes (derived by repeating + hashing)
+
+For each byte at position i:
+  encrypted[i] = plain[i] ^ key[i % key_length]</code></pre>
+
+    <div class="box box-warning">
+      <strong>Filename matters!</strong>
+      The key derivation includes the filename (without extension). This means a file
+      encrypted as <code>title_mode_top.psb.m</code> cannot be decrypted if renamed to
+      <code>other_name.psb.m</code>. Always keep the original filename when extracting/building.
+    </div>
+
+    <h3>Zstandard Compression</h3>
+    <p>
+      After XOR decryption, the payload is a standard zstd-compressed blob.
+      Default compression level for building: 3.
+      The magic bytes after decryption should be <code>0x28 0xB5 0x2F 0xFD</code> (zstd frame magic).
+    </p>
+
+    <h2>PSB Binary Format</h2>
+    <p>
+      PSB (PackageSuB) is M2's proprietary binary format for structured data.
+      Think of it as a binary JSON with support for embedded binary resources (textures, etc.).
+    </p>
+
+    <h3>PSB Header</h3>
+    <div class="diagram">
+  Offset  Size  Description
+  ──────  ────  ───────────
+  0x00    4     Magic: "PSB\0"
+  0x04    4     Version (typically 3 or 4)
+  0x08    4     Flags / encryption marker
+  0x0C    4     String offsets table offset
+  0x10    4     String data offset
+  0x14    4     Resource offsets table offset
+  0x18    4     Resource data offset (chunk offsets)
+  0x1C    4     Resource data offset (chunk lengths)
+  0x20    4     Root object tree offset
+  0x24    4     Total resource data size
+    </div>
+
+    <h3>PSB Value Types</h3>
+    <table>
+      <tr><th>Type ID</th><th>Type</th><th>Encoding</th></tr>
+      <tr><td><code>0x01</code></td><td>null</td><td>No data</td></tr>
+      <tr><td><code>0x02</code></td><td>true</td><td>No data</td></tr>
+      <tr><td><code>0x03</code></td><td>false</td><td>No data</td></tr>
+      <tr><td><code>0x04</code></td><td>int (0 bytes)</td><td>Value is 0</td></tr>
+      <tr><td><code>0x05-0x0C</code></td><td>int (1-8 bytes)</td><td>Little-endian integer</td></tr>
+      <tr><td><code>0x0D-0x10</code></td><td>array</td><td>Count + element offsets + elements</td></tr>
+      <tr><td><code>0x15-0x18</code></td><td>string</td><td>Index into string table</td></tr>
+      <tr><td><code>0x19-0x1C</code></td><td>resource</td><td>Index into resource/chunk table</td></tr>
+      <tr><td><code>0x1D-0x20</code></td><td>float</td><td>IEEE 754 (0/32/64-bit)</td></tr>
+      <tr><td><code>0x21-0x24</code></td><td>object (dict)</td><td>Key indices + value offsets + values</td></tr>
+    </table>
+
+    <h3>Resources / Textures</h3>
+    <p>
+      PSB files can embed binary resources (typically RGBA textures). These are stored
+      in a separate chunk area after the main tree data. Motion PSBs use this to embed
+      sprite sheet textures.
+    </p>
+    <p>
+      Resources are referenced in JSON as special <code>"stream:NAME"</code> keys that
+      map to external PNG files during extract, and get re-embedded during build.
+    </p>
+
+    <h2>JSON Representation</h2>
+    <p>
+      When extracted with <code>mzstool.py</code>, PSB files become JSON with a resource
+      directory alongside for any embedded textures:
+    </p>
+    <div class="diagram">
+<span class="hl-blue">Extracted layout</span>
+
+  title_mode_top.psb.m
+       |
+       |── <span class="highlight">extract</span>
+       v
+  title_mode_top/
+    |- title_mode_top.json        <span class="hl-dim"># Config data as JSON</span>
+    \- (no resources for config-only PSBs)
+
+  title_jp_titleselect_jp.psb.m
+       |
+       |── <span class="highlight">extract</span>
+       v
+  title_jp_titleselect_jp/
+    |- title_jp_titleselect_jp.json   <span class="hl-dim"># Motion data as JSON</span>
+    |- tex#000.png                     <span class="hl-dim"># Sprite sheet 1 (1024x1024)</span>
+    \- tex#001.png                     <span class="hl-dim"># Sprite sheet 2 (1024x1024)</span>
+    </div>
+
+    <h2>Round-Trip Fidelity</h2>
+    <p>
+      The extract &rarr; build pipeline produces valid but <strong>not binary-identical</strong>
+      files. Differences include:
+    </p>
+    <ul>
+      <li>Different zstd compression output (different compressor version/settings)</li>
+      <li>Potentially different PSB internal layout (string table ordering, padding)</li>
+      <li>XOR encryption is deterministic given the same input</li>
+    </ul>
+    <p>
+      Despite binary differences, round-tripped files are <strong>functionally equivalent</strong>
+      and work correctly with m2engage.
+    </p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cover Motion PSBs - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html" class="active">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Cover Motion PSBs <span class="tag">motion</span></h1>
+    <p class="page-desc">
+      Sprite sheet textures and animation data for game cover art display in the
+      title selection carousel.
+    </p>
+
+    <h2>Files</h2>
+    <table>
+      <tr><th>File</th><th>Lineup</th><th>Original Size</th></tr>
+      <tr>
+        <td><code>040/motion/title_jp_titleselect_jp.psb.m</code></td>
+        <td><span class="badge badge-jp">JP</span> PCE lineup (34 games)</td>
+        <td>5.3 MB</td>
+      </tr>
+      <tr>
+        <td><code>040/motion/title_jp_titleselect_us.psb.m</code></td>
+        <td><span class="badge badge-us">US</span> TG16 lineup (24 games)</td>
+        <td>4.1 MB</td>
+      </tr>
+    </table>
+    <p>
+      These are by far the largest PSB files &mdash; they contain embedded RGBA texture data
+      for all game cover images.
+    </p>
+
+    <h2>Structure Overview</h2>
+    <pre><code>{
+  "easing": [...],               // Animation easing curves
+  "object": {
+    "pkg": {
+      "motion": {
+        "front":  { ... },       // Main cover display
+        "sg":     { ... },       // Selection glow/highlight
+        "soft31": { ... },       // Composite cover layers
+        "soft32": { ... },
+        "soft33": { ... },
+        "thumb":  { ... }        // Thumbnail strip
+      }
+    }
+  },
+  "screenSize": [1280, 720],
+  "source": {
+    "tex#000": { ... },          // Sprite sheet 1 (1024x1024)
+    "tex#001": { ... }           // Sprite sheet 2 (1024x1024)
+  },
+  "version": 4.0
+}</code></pre>
+
+    <h2>Sprite Sheet Textures</h2>
+    <p>
+      Cover art images are packed into 1024&times;1024 RGBA8 sprite sheets.
+      Each game cover is approximately 204&times;252 pixels (varies slightly).
+    </p>
+
+    <!-- SVG sprite sheet illustration -->
+    <svg width="520" height="420" viewBox="0 0 520 420" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="520" height="420" fill="#161b22" rx="8"/>
+      <text x="260" y="24" fill="#e6edf3" font-size="13" font-weight="bold" text-anchor="middle">Sprite Sheet Layout (tex#000, 1024x1024)</text>
+
+      <!-- Grid -->
+      <rect x="20" y="40" width="340" height="340" fill="#0d1117" stroke="#30363d" rx="4"/>
+
+      <!-- Row 0 -->
+      <rect x="22" y="42" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="61" y="85" fill="#f78166" font-size="9" text-anchor="middle">0000</text>
+      <rect x="104" y="42" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="143" y="85" fill="#f78166" font-size="9" text-anchor="middle">0001</text>
+      <rect x="186" y="42" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="225" y="85" fill="#f78166" font-size="9" text-anchor="middle">0002</text>
+      <rect x="268" y="42" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="307" y="85" fill="#f78166" font-size="9" text-anchor="middle">0003</text>
+
+      <!-- Row 1 -->
+      <rect x="22" y="124" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="61" y="167" fill="#f78166" font-size="9" text-anchor="middle">0004</text>
+      <rect x="104" y="124" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="143" y="167" fill="#f78166" font-size="9" text-anchor="middle">0005</text>
+      <rect x="186" y="124" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="225" y="167" fill="#f78166" font-size="9" text-anchor="middle">0006</text>
+      <rect x="268" y="124" width="78" height="78" fill="#2a1a1a" stroke="#e44" stroke-width="0.5" rx="2"/>
+      <text x="307" y="167" fill="#f78166" font-size="9" text-anchor="middle">0007</text>
+
+      <!-- Row 2 (partial) -->
+      <rect x="22" y="206" width="78" height="78" fill="#1a1a2e" stroke="#58a6ff" stroke-width="0.5" rx="2"/>
+      <text x="61" y="249" fill="#79c0ff" font-size="9" text-anchor="middle">...</text>
+      <rect x="104" y="206" width="78" height="78" fill="#1a1a2e" stroke="#58a6ff" stroke-width="0.5" rx="2"/>
+      <text x="143" y="249" fill="#79c0ff" font-size="9" text-anchor="middle">...</text>
+
+      <!-- Empty area -->
+      <rect x="186" y="206" width="160" height="160" fill="#111318" stroke="#21262d" stroke-width="0.5" rx="2" stroke-dasharray="4,4"/>
+      <text x="266" y="290" fill="#484f58" font-size="10" text-anchor="middle">unused</text>
+
+      <!-- Legend -->
+      <text x="385" y="65" fill="#e6edf3" font-size="12" font-weight="bold">Icon Map</text>
+      <text x="385" y="90" fill="#8b949e" font-size="11">"0000": {</text>
+      <text x="385" y="108" fill="#8b949e" font-size="11">  x: 1, y: 1,</text>
+      <text x="385" y="126" fill="#8b949e" font-size="11">  w: 204, h: 252</text>
+      <text x="385" y="144" fill="#8b949e" font-size="11">}</text>
+      <text x="385" y="172" fill="#8b949e" font-size="11">"0001": {</text>
+      <text x="385" y="190" fill="#8b949e" font-size="11">  x: 206, y: 1,</text>
+      <text x="385" y="208" fill="#8b949e" font-size="11">  w: 204, h: 252</text>
+      <text x="385" y="226" fill="#8b949e" font-size="11">}</text>
+
+      <text x="385" y="270" fill="#e6edf3" font-size="12" font-weight="bold">Texture Info</text>
+      <text x="385" y="295" fill="#8b949e" font-size="11">Format: RGBA8</text>
+      <text x="385" y="313" fill="#8b949e" font-size="11">Size: 1024 x 1024</text>
+      <text x="385" y="331" fill="#8b949e" font-size="11">~4 MB per sheet</text>
+
+      <text x="385" y="370" fill="#d2a8ff" font-size="11">Icons are named</text>
+      <text x="385" y="388" fill="#d2a8ff" font-size="11">"0000" to "NNNN"</text>
+      <text x="385" y="406" fill="#d2a8ff" font-size="11">(zero-padded 4 digits)</text>
+    </svg>
+
+    <h3>source.tex#NNN Structure</h3>
+    <pre><code>"source": {
+  "tex#000": {
+    "icon": {
+      "0000": { "attr": 0, "height": 252, "left": 1, "top": 1, "width": 204, "originX": 0, "originY": 0 },
+      "0001": { "attr": 0, "height": 252, "left": 206, "top": 1, "width": 204, "originX": 0, "originY": 0 },
+      // ... one entry per game cover
+    },
+    "texture": {
+      "height": 1024,
+      "pixel": "RGBA8",
+      "truncated_height": 1024,
+      "truncated_width": 1024,
+      "type": "RGBA8",
+      "width": 1024
+    }
+  }
+}</code></pre>
+
+    <h2>Motion / Animation Structure</h2>
+
+    <h3>The "pkg" Parameter</h3>
+    <p>
+      The key mechanism for displaying different game covers is the <code>pkg</code> parameter.
+      Each motion object exposes a <code>pkg</code> variable that the Squirrel scripts set
+      to select which cover to display:
+    </p>
+    <pre><code>// In mode_title_select.nut:
+m_pkgselect_motion[i].setVariable("pkg", image_index);</code></pre>
+
+    <h3>front Motion (Main Cover Display)</h3>
+    <pre><code>"front": {
+  "layer": [{
+    "frameList": [
+      { "time": 0, "type": 2, "content": { "icon": "0000", "src": "tex#000" } },
+      { "time": 1, "type": 2, "content": { "icon": "0001", "src": "tex#000" } },
+      { "time": 2, "type": 2, "content": { "icon": "0002", "src": "tex#000" } },
+      // ... one frame per game
+      { "time": 50, "type": 0 }  // End marker
+    ]
+  }],
+  "parameter": [{
+    "id": "pkg",
+    "division": 50,     // Total slots (always 50)
+    "rangeEnd": 50      // Range end (matches division)
+  }],
+  "lastTime": 51        // = max(time) + 1
+}</code></pre>
+
+    <p>
+      The <code>pkg</code> parameter acts as a timeline index. When set to value N, the motion
+      engine jumps to <code>time=N</code> in the frameList, displaying the icon at that time.
+    </p>
+
+    <div class="diagram">
+<span class="hl-blue">How pkg selects a cover</span>
+
+  Script: setVariable("pkg", 3)
+     |
+     v
+  front.parameter[0]: id="pkg", division=50
+     |
+     v
+  Seek to time=3 in frameList
+     |
+     v
+  frameList[3]: icon="0003", src="tex#000"
+     |
+     v
+  source.tex#000.icon["0003"]: left=618, top=1, w=204, h=252
+     |
+     v
+  <span class="highlight">Render 204x252 region from sprite sheet</span>
+    </div>
+
+    <h3>Sub-Motions</h3>
+    <table>
+      <tr><th>Motion</th><th>Purpose</th><th>Notes</th></tr>
+      <tr>
+        <td><code>front</code></td>
+        <td>Main cover art display</td>
+        <td>Full-size covers in carousel center</td>
+      </tr>
+      <tr>
+        <td><code>thumb</code></td>
+        <td>Thumbnail strip</td>
+        <td>Small covers in bottom strip</td>
+      </tr>
+      <tr>
+        <td><code>sg</code></td>
+        <td>Selection glow</td>
+        <td>Highlight effect on selected game</td>
+      </tr>
+      <tr>
+        <td><code>soft31</code></td>
+        <td>Composite layer 1</td>
+        <td>Multi-layer cover compositions</td>
+      </tr>
+      <tr>
+        <td><code>soft32</code></td>
+        <td>Composite layer 2</td>
+        <td>Background/shadow layer</td>
+      </tr>
+      <tr>
+        <td><code>soft33</code></td>
+        <td>Composite layer 3</td>
+        <td>Overlay/border layer</td>
+      </tr>
+    </table>
+
+    <h3>Special Icons</h3>
+    <p>
+      Beyond game covers, sprite sheets may contain special icons for UI elements:
+    </p>
+    <ul>
+      <li>Arrow/navigation indicators</li>
+      <li>Selection frame overlays</li>
+      <li>Platform badges</li>
+    </ul>
+
+    <h2>Custom Cover Sprite Sheets</h2>
+    <p>
+      For custom game packs with N games, you need:
+    </p>
+    <ul>
+      <li>Cover images resized to a consistent size (e.g., 240&times;240)</li>
+      <li>Packed into 1024&times;1024 RGBA8 sprite sheet(s)</li>
+      <li>Icon coordinate map matching the layout</li>
+      <li>frameList with one entry per game (time = game index)</li>
+      <li><code>division</code> and <code>rangeEnd</code> set to 50 (total slot count)</li>
+    </ul>
+
+    <div class="box box-info">
+      <strong>Simplified covers for custom packs</strong>
+      The original covers use complex multi-layer compositions (soft31/32/33) for effects
+      like beveled edges and shadows. Custom packs can use simpler single-layer covers
+      with just the <code>front</code> and <code>thumb</code> motions.
+    </div>
+
+  </main>
+</body>
+</html>

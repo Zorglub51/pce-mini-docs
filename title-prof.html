@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>title_prof - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html" class="active">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>title_prof <span class="tag">config</span></h1>
+    <p class="page-desc">
+      Per-game ROM and emulator configuration. Maps each game ID to its ROM file,
+      emulator architecture, country settings, and audio parameters.
+      Also holds global controller, replay, and wallpaper settings.
+    </p>
+
+    <h2>File Location</h2>
+    <pre><code>040/config/title_prof.psb.m</code></pre>
+    <p>Original size: ~5,092 bytes (encrypted+compressed). Loaded by m2engage during <strong>native C++ init</strong>, before any Squirrel scripts run.</p>
+
+    <div class="box box-danger">
+      <strong>Crashes m2engage if malformed</strong>
+      Unlike title_mode_top (loaded by scripts with lenient error handling), title_prof is parsed by the
+      native C++ code during early initialization. A malformed file causes an immediate crash
+      with <strong>no SQ output and no sound</strong>. The native parser is strict about field names &mdash;
+      using incorrect names (even for optional-looking fields) will crash.
+    </div>
+
+    <!-- ===== TOP-LEVEL STRUCTURE ===== -->
+    <h2>Top-Level Structure</h2>
+    <p>All data must be wrapped in a <code>root</code> object containing exactly 7 sections:</p>
+
+    <div class="diagram">
+<span class="hl-blue">title_prof.psb structure</span>
+
+root
+ |- <span class="highlight">controller</span>      gamepad button mapping &amp; rapid fire config
+ |- <span class="highlight">game_versions</span>   maps GAMEID -> [index, dlc_flag, menu_string]
+ |- <span class="highlight">m2epi</span>           emulator settings (global + per-game)
+ |   |- overdrive     global CPU speed (int)
+ |   |- preamp        global audio preamp (float)
+ |   |- sram_support  global SRAM flag (bool)
+ |   \- <span class="hl-green">version</span>      per-game configs keyed by GAMEID
+ |       \- {GAMEID}  {arch, country, rom, preamp, ...}
+ |- <span class="highlight">player_num</span>      single integer (max player slots)
+ |- <span class="highlight">replay</span>          replay recording settings
+ |- <span class="highlight">title</span>           {dev_name: "PceMini"}
+ \- <span class="highlight">wallpaper</span>       {datafile: pattern, max_num: count}
+    </div>
+
+    <div class="box box-warning">
+      <strong>The <code>root</code> wrapper is required</strong>
+      The native parser expects exactly this nesting. Omitting <code>root</code> or
+      changing the top-level structure causes a crash.
+    </div>
+
+    <!-- ===== LOADING & CACHING ===== -->
+    <h2>Loading &amp; Caching</h2>
+    <p>
+      The file is loaded from Squirrel via <code>game_content.nut</code>:
+    </p>
+    <pre><code>// game_content.nut, line ~975
+function _get_title_prof(_dev_id = 0) {
+    local path      = conv_path("config/title_prof.psb", _dev_id);
+    local spec_path = conv_path("config/title_prof_specdepend.psb", _dev_id);
+    local title_prof      = ::util_load_config(path).root;
+    local title_prof_spec = ::util_load_config(spec_path).root;
+    title_prof = ::merge_tables(title_prof_spec, title_prof);
+    return title_prof;
+}</code></pre>
+    <p>
+      Note: the <code>.root</code> is unwrapped immediately. All subsequent script access
+      uses fields directly (e.g., <code>title_prof.player_num</code>, not <code>title_prof.root.player_num</code>).
+      The result is cached in <code>s_current_title_prof</code> and accessed via <code>get_current_title_prof()</code>.
+    </p>
+    <p>
+      The <code>title_prof_specdepend.psb</code> file is merged on top, allowing
+      platform-specific overrides without modifying the base config.
+    </p>
+
+    <!-- ===== SECTIONS ===== -->
+    <h2>Sections in Detail</h2>
+
+    <!-- --- m2epi --- -->
+    <h3>m2epi <span class="tag">required</span></h3>
+    <p>
+      The core emulator configuration. Contains global defaults and a <code>version</code>
+      dict with per-game overrides.
+    </p>
+    <pre><code>"m2epi": {
+  "overdrive": 0,
+  "preamp": 0.0,
+  "sram_support": false,
+  "version": {
+    "GAME000": {
+      "arch": "tg16",
+      "country": "jp",
+      "preamp": 4.08,
+      "rom": "roms/KungFu_J.pce",
+      "tg16pad_type": 0
+    },
+    "GAME004": {
+      "arch": "tg16cd",
+      "country": "jp",
+      "preamp": -2.91,
+      "rom": "roms/YsBookI_II.pcd"
+    },
+    "GAME007": {
+      "arch": "sgx",
+      "country": "jp",
+      "preamp": 0.64,
+      "rom": "roms/Daimakaimura_J.pce"
+    },
+    "GAME014": {
+      "arch": "tg16cd",
+      "country": "jp",
+      "preamp": -5.71,
+      "rom": "roms/Sapphire.pcd",
+      "tg16_hblank": 100,
+      "tg16_option": 0,
+      "tg16cd_systemcard": "arcade",
+      "tg16pad_type": 5
+    }
+  }
+}</code></pre>
+
+    <h4>Global m2epi Fields</h4>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+      <tr>
+        <td><code>overdrive</code></td><td>int</td><td>0</td>
+        <td>CPU speed multiplier. Accessed via <code>_init_emulator_get_option_by_regionTag()</code></td>
+      </tr>
+      <tr>
+        <td><code>preamp</code></td><td>float</td><td>0.0</td>
+        <td>Global audio preamp in dB (per-game <code>preamp</code> overrides this)</td>
+      </tr>
+      <tr>
+        <td><code>sram_support</code></td><td>bool</td><td>false</td>
+        <td>Global SRAM support flag</td>
+      </tr>
+    </table>
+
+    <h4>Per-Game version Entry Fields</h4>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+      <tr>
+        <td><code>arch</code></td><td>string</td><td>Yes</td>
+        <td>Emulator architecture: <code>"tg16"</code>, <code>"tg16cd"</code>, <code>"sgx"</code></td>
+      </tr>
+      <tr>
+        <td><code>country</code></td><td>string</td><td>Yes</td>
+        <td>Region: <code>"jp"</code> or <code>"us"</code></td>
+      </tr>
+      <tr>
+        <td><code>rom</code></td><td>string</td><td>Yes</td>
+        <td>ROM filename (relative path, e.g., <code>"roms/KungFu_J.pce"</code>)</td>
+      </tr>
+      <tr>
+        <td><code>preamp</code></td><td>float</td><td>Yes</td>
+        <td>Per-game audio preamp in dB (overrides global)</td>
+      </tr>
+      <tr>
+        <td><code>tg16cd_systemcard</code></td><td>string</td><td>CD only</td>
+        <td>System card type: <code>"super"</code> or <code>"arcade"</code></td>
+      </tr>
+      <tr>
+        <td><code>tg16_hblank</code></td><td>int</td><td>No</td>
+        <td>H-blank timing override: <code>70</code> or <code>100</code></td>
+      </tr>
+      <tr>
+        <td><code>tg16pad_type</code></td><td>int</td><td>No</td>
+        <td>Controller type (0 = 2-button, 5 = 6-button)</td>
+      </tr>
+      <tr>
+        <td><code>tg16_option</code></td><td>int</td><td>No</td>
+        <td>Additional TG16 emulator option flags</td>
+      </tr>
+    </table>
+
+    <p>The scripts use a two-level lookup pattern: check global m2epi first, then override
+    with version-specific values if present:</p>
+    <pre><code>// emulator.nut — helper pattern
+function _init_emulator_get_option_by_regionTag(_m2epi, _regionTag, _key, _default) {
+    // First check version-specific
+    if (_key in _m2epi.version[_regionTag])
+        return _m2epi.version[_regionTag][_key];
+    // Then check global
+    if (_key in _m2epi)
+        return _m2epi[_key];
+    return _default;
+}</code></pre>
+
+    <h4>Additional Optional m2epi Fields</h4>
+    <p>These are checked with <code>"key" in obj</code> before access and are safe to omit:</p>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>brightness</code></td><td>float</td><td>Screen brightness (default 1.0)</td></tr>
+      <tr><td><code>sram_hot_swap</code></td><td>bool</td><td>SRAM hotswap support</td></tr>
+      <tr><td><code>sram_crypted</code></td><td>bool</td><td>SRAM encryption flag</td></tr>
+      <tr><td><code>sram_need_save_frame</code></td><td>int</td><td>Frames before SRAM save</td></tr>
+      <tr><td><code>subst_screen_zoom_x</code></td><td>float</td><td>Screen X zoom multiplier</td></tr>
+      <tr><td><code>screen_setting_state</code></td><td>table</td><td>Per-region screen state file paths</td></tr>
+      <tr><td><code>stringGlobal</code></td><td>table</td><td>Global string configuration</td></tr>
+    </table>
+
+    <!-- --- game_versions --- -->
+    <h3>game_versions <span class="tag">required</span></h3>
+    <p>Maps each game ID to an internal version index, DLC flag, and menu text string:</p>
+    <pre><code>"game_versions": {
+  "GAME000": [0,  0, "MenuItemText__TITLE_GAME_VERSION_000"],
+  "GAME001": [1,  0, "MenuItemText__TITLE_GAME_VERSION_001"],
+  "GAME002": [2,  0, "MenuItemText__TITLE_GAME_VERSION_002"],
+  "GAME002E": [52, 0, "MenuItemText__TITLE_GAME_VERSION_053"],
+  ...
+}</code></pre>
+
+    <p>Format: <code>[index, dlc_flag, menu_string_key]</code></p>
+    <table>
+      <tr><th>Element</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>[0]</code> index</td><td>int</td><td>Sequential game index. Base games: 0&ndash;52. Variant games: 52+.</td></tr>
+      <tr><td><code>[1]</code> dlc_flag</td><td>int</td><td>Always 0 for PCE Mini (DLC support unused)</td></tr>
+      <tr><td><code>[2]</code> menu_string</td><td>string</td><td>Localization string key for version menu</td></tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Game variant suffixes</strong>
+      <ul style="margin-top:8px; margin-bottom:0">
+        <li><code>GAME002E</code> &mdash; "E" suffix = alternate version (e.g., different audio)</li>
+        <li><code>GAME009S</code> &mdash; "S" suffix = special version (e.g., button swap)</li>
+        <li><code>GAME016F</code> &mdash; "F" suffix = hidden bonus game (Force Gear)</li>
+        <li><code>GAME016T</code> &mdash; "T" suffix = hidden bonus game (Twinbee Returns)</li>
+      </ul>
+      <p style="margin-top:8px">
+        Variant IDs must have entries in <strong>both</strong> <code>game_versions</code> and <code>m2epi.version</code>.
+        The <code>game_versions_layout</code> and <code>game_versions_default</code> fields (optional)
+        control which variants appear in the version selection menu.
+      </p>
+    </div>
+
+    <h4>Optional game_versions sub-tables</h4>
+    <p>These are checked with <code>"key" in title_prof</code> and can be omitted:</p>
+    <pre><code>// game_content.nut — version selection
+if ("game_versions_layout" in title_prof) {
+    // Defines which versions appear in the selection menu per region
+    // Format: {regionTag: ["GAME000", "GAME000E", ...]}
+}
+if ("game_versions_default" in title_prof) {
+    // Sets the default version when multiple exist
+    // Format: {regionTag: "GAME000"}
+}</code></pre>
+
+    <!-- --- controller --- -->
+    <h3>controller <span class="tag">required</span></h3>
+    <p>Global controller configuration shared across all games:</p>
+    <pre><code>"controller": {
+  "init_emu_key": [1, 2, 2, 1, 0, 0, 0, 0, 1073741824, 0, 512, 1024, 0],
+  "init_rapid_speed": 12,
+  "key_combo_text": [
+    {"combo": 1, "text": "MenuItemText__TITLE_KEY_COMBO_A"},
+    {"combo": 2, "text": "MenuItemText__TITLE_KEY_COMBO_B"},
+    {"combo": 4, "text": "MenuItemText__TITLE_KEY_COMBO_C"}
+  ],
+  "rapid_speed_list": [10, 12, 15, 20, 30],
+  "use_emu_key": 7
+}</code></pre>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr>
+        <td><code>init_emu_key</code></td><td>int[13]</td>
+        <td>Default button mapping. 13-element array mapping logical buttons to physical.</td>
+      </tr>
+      <tr>
+        <td><code>init_rapid_speed</code></td><td>int</td>
+        <td>Default rapid fire speed (12 = frames per toggle)</td>
+      </tr>
+      <tr>
+        <td><code>key_combo_text</code></td><td>array</td>
+        <td>Button combo display strings for the settings menu</td>
+      </tr>
+      <tr>
+        <td><code>rapid_speed_list</code></td><td>int[]</td>
+        <td>Available rapid fire speed options</td>
+      </tr>
+      <tr>
+        <td><code>use_emu_key</code></td><td>int</td>
+        <td>Bitmask of enabled emulator key features (7 = all basic)</td>
+      </tr>
+    </table>
+    <p>Accessed in <code>title_session.nut</code>:</p>
+    <pre><code>// title_session.nut
+function get_use_emu_key() {
+    local controller = ::get_current_title_prof().controller;
+    if ("use_emu_key" in controller)
+        return controller["use_emu_key"];
+    return 0;
+}</code></pre>
+
+    <!-- --- player_num --- -->
+    <h3>player_num <span class="tag">required</span></h3>
+
+    <div class="box box-danger">
+      <strong>This is a single integer, NOT a dict</strong>
+      A common mistake is to make this a per-game mapping. The original value is simply <code>6</code>.
+    </div>
+
+    <pre><code>"player_num": 6</code></pre>
+    <p>
+      Represents the maximum number of player slots (not per-game player count &mdash; that's in
+      title_mode_top's <code>players</code> field). Accessed directly:
+    </p>
+    <pre><code>// title_session.nut
+function get_player_num() {
+    return ::get_current_title_prof().player_num;  // returns 6
+}</code></pre>
+
+    <!-- --- replay --- -->
+    <h3>replay <span class="tag">required &mdash; exact field names</span></h3>
+
+    <div class="box box-danger">
+      <strong>Field names must match exactly</strong>
+      Using wrong field names (e.g., <code>fps</code> / <code>record_sec</code> instead of the
+      correct names below) will crash the native parser.
+    </div>
+
+    <pre><code>"replay": {
+  "init_replay_record_time": 60,
+  "max_replay_record_time": 60,
+  "replay_record_time_list": [0, 30, 60]
+}</code></pre>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr>
+        <td><code>init_replay_record_time</code></td><td>int</td>
+        <td>Default replay recording duration in seconds</td>
+      </tr>
+      <tr>
+        <td><code>max_replay_record_time</code></td><td>int</td>
+        <td>Maximum allowed replay duration in seconds</td>
+      </tr>
+      <tr>
+        <td><code>replay_record_time_list</code></td><td>int[]</td>
+        <td>Available options: [0 = off, 30, 60] seconds</td>
+      </tr>
+    </table>
+    <p>Accessed in <code>emulator.nut</code> for the replay recording feature:</p>
+    <pre><code>// emulator.nut
+local title_prof = get_current_title_prof();
+if ("max_replay_record_time" in title_prof.replay) {
+    record_minutes = title_prof.replay["max_replay_record_time"];
+}</code></pre>
+
+    <!-- --- title --- -->
+    <h3>title <span class="tag">required</span></h3>
+    <p>Simple object with a single field identifying the device/platform:</p>
+    <pre><code>"title": {
+  "dev_name": "PceMini"
+}</code></pre>
+    <p>
+      <code>dev_name</code> maps to a numeric <code>dev_id</code> via <code>get_title_dev_id()</code>.
+      "PceMini" maps to dev_id 40 (PCE), which determines which <code>040/</code> directory
+      to load game data from.
+    </p>
+    <pre><code>// title_session.nut
+function get_dev_id() {
+    return get_title_dev_id(::get_current_title_prof().title.dev_name);
+}</code></pre>
+
+    <!-- --- wallpaper --- -->
+    <h3>wallpaper <span class="tag">required &mdash; exact field names</span></h3>
+
+    <div class="box box-danger">
+      <strong>Field names must match exactly</strong>
+      Using wrong field names (e.g., <code>motion_file</code> / <code>num</code> instead of
+      <code>datafile</code> / <code>max_num</code>) will crash the native parser.
+    </div>
+
+    <pre><code>"wallpaper": {
+  "datafile": "motion/bg%02d.psb",
+  "max_num": 1
+}</code></pre>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr>
+        <td><code>datafile</code></td><td>string</td>
+        <td>Printf pattern for background motion PSB files (relative to 040/)</td>
+      </tr>
+      <tr>
+        <td><code>max_num</code></td><td>int</td>
+        <td>Number of available wallpaper variants (1 = just bg00.psb)</td>
+      </tr>
+    </table>
+
+    <!-- ===== RELATIONSHIP DIAGRAM ===== -->
+    <h2>Relationships</h2>
+
+    <h3>Internal: game_versions &harr; m2epi.version</h3>
+    <p>
+      Every key in <code>game_versions</code> must also exist in <code>m2epi.version</code>.
+      They share the same GAMEID namespace:
+    </p>
+    <div class="diagram">
+<span class="hl-blue">Internal cross-references within title_prof</span>
+
+game_versions                         m2epi.version
+ "<span class="highlight">GAME000</span>": [0, 0, "..."]  &lt;----&gt;  "<span class="highlight">GAME000</span>": {arch, country, rom, preamp}
+ "<span class="highlight">GAME002</span>": [2, 0, "..."]  &lt;----&gt;  "<span class="highlight">GAME002</span>": {arch:"tg16cd", ...}
+ "<span class="highlight">GAME002E</span>": [52, 0, "..."] &lt;----&gt;  "<span class="highlight">GAME002E</span>": {arch:"tg16cd", ...}
+
+ Variant IDs (E/S/F/T suffixes) appear in BOTH tables.
+ The original has 83 entries in game_versions across 58 base games.
+    </div>
+
+    <h3>External: title_mode_top &rarr; title_prof</h3>
+    <p>
+      The <code>regionTag</code> field in title_mode_top items links to both
+      <code>game_versions</code> and <code>m2epi.version</code>:
+    </p>
+    <div class="diagram">
+<span class="hl-blue">Cross-file linkage via regionTag</span>
+
+<span class="hl-purple">title_mode_top.psb</span>                  <span class="hl-purple">title_prof.psb</span>
+
+items[0]:                             game_versions:
+  regionTag = "<span class="highlight">GAME000</span>"  ──────────&gt;  "<span class="highlight">GAME000</span>": [0, 0, "MenuItemText..."]
+  name = "THE 功夫"
+  image = 0                           m2epi.version:
+  csize = 0             ──────────&gt;  "<span class="highlight">GAME000</span>": {
+                                        arch: "tg16",
+                                        country: "jp",
+                                        rom: "roms/KungFu_J.pce",
+                                        preamp: 4.08
+                                      }
+
+items[N]:
+  regionTag = "DUMMY"   ──────────&gt;  (no entry needed for DUMMY)
+    </div>
+
+    <p>
+      Every non-DUMMY <code>regionTag</code> in title_mode_top <strong>must</strong> have
+      matching entries in both <code>game_versions</code> and <code>m2epi.version</code>.
+      DUMMY entries are ignored and need no title_prof entry.
+    </p>
+
+    <!-- ===== OPTIONAL ADVANCED SECTIONS ===== -->
+    <h2>Advanced Optional Sections</h2>
+    <p>
+      These sections are checked with <code>"key" in title_prof</code> and are safe to omit entirely.
+      They're used by specific games for ROM patching, sound modifications, and bug emulation.
+    </p>
+
+    <h3>arrange_sound</h3>
+    <pre><code>// Optional: custom audio mixing
+"arrange_sound": {
+  "volume": 0.7   // Audio volume multiplier (default 0.7)
+}</code></pre>
+
+    <h3>original_bug</h3>
+    <pre><code>// Optional: emulate original hardware bugs
+"original_bug": {
+  "mode": 1,
+  "set_list": [
+    {"offset": 1234, "data": [0x00, 0xFF]},
+    ...
+  ]
+}</code></pre>
+    <p>Applies memory patches at runtime to emulate original hardware quirks.</p>
+
+    <h3>default_patch</h3>
+    <pre><code>// Optional: apply ROM patches at load time
+"default_patch": {
+  "mode": 1,
+  "set_list": [
+    {"offset": 5678, "data": [0x90, 0x90]},
+    ...
+  ]
+}</code></pre>
+    <p>Patches ROM data at specified offsets before emulation begins.</p>
+
+    <!-- ===== MINIMAL TEMPLATE ===== -->
+    <h2>Minimal Working Template</h2>
+    <p>
+      The smallest title_prof that m2engage will accept. All field names must match exactly:
+    </p>
+    <pre><code>{
+  "root": {
+    "controller": {
+      "init_emu_key": [1,2,2,1,0,0,0,0,1073741824,0,512,1024,0],
+      "init_rapid_speed": 12,
+      "key_combo_text": [
+        {"combo":1, "text":"MenuItemText__TITLE_KEY_COMBO_A"},
+        {"combo":2, "text":"MenuItemText__TITLE_KEY_COMBO_B"},
+        {"combo":4, "text":"MenuItemText__TITLE_KEY_COMBO_C"}
+      ],
+      "rapid_speed_list": [10,12,15,20,30],
+      "use_emu_key": 7
+    },
+    "game_versions": {
+      "GAME100": [0, 0, "MenuItemText__TITLE_GAME_VERSION_000"]
+    },
+    "m2epi": {
+      "overdrive": 0,
+      "preamp": 0.0,
+      "sram_support": false,
+      "version": {
+        "GAME100": {
+          "arch": "tg16",
+          "country": "jp",
+          "preamp": 0.0,
+          "rom": "roms/my_game.pce"
+        }
+      }
+    },
+    "player_num": 6,
+    "replay": {
+      "init_replay_record_time": 60,
+      "max_replay_record_time": 60,
+      "replay_record_time_list": [0, 30, 60]
+    },
+    "title": {
+      "dev_name": "PceMini"
+    },
+    "wallpaper": {
+      "datafile": "motion/bg%02d.psb",
+      "max_num": 1
+    }
+  }
+}</code></pre>
+
+    <!-- ===== SCRIPT ACCESS REFERENCE ===== -->
+    <h2>Script Access Reference</h2>
+    <p>Quick reference of which scripts access which fields:</p>
+    <table>
+      <tr><th>Field</th><th>Script</th><th>Function</th></tr>
+      <tr>
+        <td><code>player_num</code></td>
+        <td>title_session.nut</td>
+        <td><code>get_player_num()</code></td>
+      </tr>
+      <tr>
+        <td><code>title.dev_name</code></td>
+        <td>title_session.nut</td>
+        <td><code>get_dev_id()</code></td>
+      </tr>
+      <tr>
+        <td><code>controller.use_emu_key</code></td>
+        <td>title_session.nut</td>
+        <td><code>get_use_emu_key()</code></td>
+      </tr>
+      <tr>
+        <td><code>m2epi.version.*</code></td>
+        <td>emulator.nut</td>
+        <td><code>init_emulator()</code> + helpers</td>
+      </tr>
+      <tr>
+        <td><code>game_versions</code></td>
+        <td>game_content.nut</td>
+        <td><code>init_game_content()</code></td>
+      </tr>
+      <tr>
+        <td><code>replay.max_replay_record_time</code></td>
+        <td>emulator.nut</td>
+        <td>Replay recording setup</td>
+      </tr>
+      <tr>
+        <td><code>wallpaper.datafile</code></td>
+        <td>mode_title_select.nut</td>
+        <td>Background loading</td>
+      </tr>
+    </table>
+
+    <!-- ===== STATUS ===== -->
+    <h2>Status</h2>
+    <div class="box box-success" style="border-color: var(--success)">
+      <strong style="color: var(--success)">Fully working</strong>
+      Custom title_prof generation is validated. The key discovery was that the native C++ parser
+      requires exact field names &mdash; using <code>fps</code> instead of <code>init_replay_record_time</code>,
+      or <code>motion_file</code> instead of <code>datafile</code>, causes a silent crash.
+      All 7 sections are required but most sub-fields within them are optional (checked with
+      <code>"key" in obj</code> pattern in scripts).
+    </div>
+
+  </main>
+</body>
+</html>

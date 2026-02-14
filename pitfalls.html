@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pitfalls &amp; Gotchas - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html" class="active">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Pitfalls &amp; Gotchas</h1>
+    <p class="page-desc">
+      Hard-won lessons from debugging custom game packs. Each of these cost hours to figure out.
+    </p>
+
+    <!-- Pitfall 1 -->
+    <h2>1. Sorting Indices Out of Range</h2>
+    <div class="box box-danger">
+      <strong>Symptom: Black screen with music playing</strong>
+      SQ output looks normal, music plays, but the screen is completely black.
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      The <code>sor_*</code> fields in each game item (<code>sor_name</code>, <code>sor_date</code>,
+      <code>sor_demo</code>, <code>sor_genr</code>, <code>sor_pnum</code>) are used as array indices
+      by the Squirrel scripts. The scripts create arrays of size <code>s_titleNum</code> and then
+      use <code>sor_*</code> to index into them.
+    </p>
+    <p>
+      If you reduce <code>titleNum</code> from 34 to 10 but leave the original sort indices
+      (some reaching up to 33), the script does:
+    </p>
+    <pre><code>// mode_title_select.nut, line ~2510
+for ( i = 0; i < s_titleNum; i++ )  // s_titleNum = 10
+{
+    local index = getPkgIndex( i, m_sort, m_config );
+    s_indextable[index] = i;   // index could be 33 -> OUT OF BOUNDS!
+}</code></pre>
+    <p>
+      Squirrel's array out-of-bounds doesn't throw a visible error &mdash; it silently corrupts
+      the VM state, causing the rendering to fail without any error message in the SQ logs.
+    </p>
+    <h3>The Fix</h3>
+    <p>
+      Every <code>sor_*</code> value must be in range <code>[0, N-1]</code> where N is
+      <code>titleNum</code> (for JP items) or <code>titleNumTG</code> (for US items).
+      The simplest approach: set each item's <code>sor_*</code> to its position within
+      the 50-item section.
+    </p>
+    <pre><code># Python: fix sort indices
+for i in range(200):
+    section_pos = i % 50
+    for key in ['sor_date', 'sor_demo', 'sor_genr', 'sor_name', 'sor_pnum']:
+        items[i][key] = section_pos</code></pre>
+
+    <!-- Pitfall 2 -->
+    <h2>2. title_prof Missing <code>root</code> Wrapper</h2>
+    <div class="box box-danger">
+      <strong>Symptom: No SQ output, no sound, immediate black screen</strong>
+      m2engage crashes during native init before any scripts execute.
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      The <code>title_prof.psb.m</code> file must have its data wrapped in a <code>root</code>
+      object. The native C++ parser expects this exact structure and crashes without it.
+    </p>
+    <pre><code>// WRONG - causes crash
+{
+  "m2epi": { "version": { ... } },
+  "game_versions": { ... }
+}
+
+// CORRECT
+{
+  "root": {
+    "m2epi": { "version": { ... } },
+    "game_versions": { ... },
+    "controller": { ... },
+    "player_num": 6,
+    "replay": { ... },
+    "title": { "dev_name": "PceMini" },
+    "wallpaper": { ... }
+  }
+}</code></pre>
+    <h3>The Fix</h3>
+    <p>
+      Always wrap title_prof data in <code>{"root": { ... }}</code>. Include all 7 expected
+      sections. Note: <code>player_num</code> is a plain integer (6), not a dict.
+    </p>
+
+    <!-- Pitfall 2b -->
+    <h2>2b. title_prof Wrong Field Names</h2>
+    <div class="box box-danger">
+      <strong>Symptom: No SQ output, no sound, immediate black screen</strong>
+      Identical to the missing <code>root</code> crash. The native parser rejects unknown field names.
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      The native C++ parser expects <strong>exact</strong> field names in certain sections.
+      Using plausible-but-wrong names silently crashes:
+    </p>
+    <pre><code>// WRONG — crashes native parser
+"replay": {
+  "fps": 60,                  // not a real field
+  "record_sec": 90            // not a real field
+}
+"wallpaper": {
+  "motion_file": "...",       // wrong name
+  "num": 1                    // wrong name
+}
+
+// CORRECT
+"replay": {
+  "init_replay_record_time": 60,
+  "max_replay_record_time": 60,
+  "replay_record_time_list": [0, 30, 60]
+}
+"wallpaper": {
+  "datafile": "motion/bg%02d.psb",
+  "max_num": 1
+}</code></pre>
+    <h3>The Fix</h3>
+    <p>
+      Copy field names exactly from the original. When in doubt, extract the original
+      <code>title_prof.psb.m</code> and compare field-by-field. See the
+      <a href="title-prof.html">title_prof reference</a> for the complete field list.
+    </p>
+
+    <!-- Pitfall 3 -->
+    <h2>3. MZS Filename Sensitivity</h2>
+    <div class="box box-warning">
+      <strong>Symptom: "Decrypted data is not zstd" error from mzstool</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      The MZS encryption key is derived from the filename. If you rename a <code>.psb.m</code>
+      file, the decryption key changes and the file becomes unreadable.
+    </p>
+    <pre><code># This works:
+mzstool.py extract title_mode_top.psb.m
+
+# This fails (wrong key derived from "renamed"):
+cp title_mode_top.psb.m renamed.psb.m
+mzstool.py extract renamed.psb.m
+# -> ValueError: Decrypted data is not zstd (magic: 0x9a7b8864)</code></pre>
+    <h3>The Fix</h3>
+    <p>Always keep the original filename when extracting or building.</p>
+
+    <!-- Pitfall 4 -->
+    <h2>4. DUMMY Entry Differences</h2>
+    <div class="box box-info">
+      <strong>Subtle: Doesn't crash but may cause unexpected behavior</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      DUMMY entries in the original data have <code>players: 1</code> and
+      <code>demo_time: 6180</code>, but it's tempting to use <code>players: 0</code>
+      (since dummy games have no players) and different demo_time values.
+    </p>
+    <h3>The Fix</h3>
+    <p>Match the original DUMMY template exactly:</p>
+    <ul>
+      <li><code>players: 1</code> (not 0)</li>
+      <li><code>demo_time: 6180</code></li>
+      <li><code>regionTag: "DUMMY"</code></li>
+      <li><code>sor_*: section_index</code> (see Pitfall #1)</li>
+    </ul>
+
+    <!-- Pitfall 5 -->
+    <h2>5. Missing Top-Level Keys in title_mode_top</h2>
+    <div class="box box-warning">
+      <strong>Symptom: Rendering glitches or missing animations</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      Besides <code>items</code>, <code>titleNum</code>, and <code>titleNumTG</code>,
+      the title_mode_top file has five additional top-level keys used by the native
+      animation engine:
+    </p>
+    <pre><code>"motion_basename": "title_grandmenu",
+"motion_chara": "grandmenu",
+"motion_label": "stand",
+"scroll_frame": 10,
+"scroll_variable": "gametitle_normal"</code></pre>
+    <h3>The Fix</h3>
+    <p>Always include all eight top-level keys. Copy these five values verbatim from the originals.</p>
+
+    <!-- Pitfall 6 -->
+    <h2>6. titleNum / titleNumTG Swapped</h2>
+    <div class="box box-warning">
+      <strong>Symptom: Wrong game count per lineup, carousel behaves oddly</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      The naming is counterintuitive:
+    </p>
+    <ul>
+      <li><code>titleNum</code> = JP/PCE game count (34 in original)</li>
+      <li><code>titleNumTG</code> = US/TG16 game count (24 in original)</li>
+    </ul>
+    <p>
+      It's easy to swap these, especially since the script uses them via a conditional:
+    </p>
+    <pre><code>if (s_last_linenp == LINEUP_JP)
+    s_titleNum = m_config["titleNum"];      // JP count
+else
+    s_titleNum = m_config["titleNumTG"];    // US count</code></pre>
+
+    <!-- Pitfall 7 -->
+    <h2>7. Stale gl_proxy / Shared Memory</h2>
+    <div class="box box-info">
+      <strong>Symptom: m2engage hangs, gl_proxy shows "Ready" but nothing happens</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      When running on the VM setup (virgl + qemu-user), a leftover gl_proxy process
+      from a previous session can hold the <code>/dev/shm/m2e_gl</code> shared memory file.
+      New instances get confused.
+    </p>
+    <h3>The Fix</h3>
+    <pre><code># Before launching:
+pkill -9 -f gl_proxy
+pkill -9 -f m2engage
+rm -f /dev/shm/m2e_gl
+sleep 1
+# Now launch run.sh</code></pre>
+
+    <!-- Pitfall 8 -->
+    <h2>8. Platform Check Intermittent Crash</h2>
+    <div class="box box-info">
+      <strong>Symptom: Exit code 99 (SIGBUS), "platform read failed" message</strong>
+    </div>
+    <h3>The Problem</h3>
+    <p>
+      m2engage's hardware platform check (i2c EEPROM read) occasionally triggers a SIGBUS
+      under qemu-user emulation. This is non-deterministic and timing-sensitive.
+    </p>
+    <h3>The Fix</h3>
+    <p>
+      The <code>run.sh</code> script auto-retries on exit code 99, up to 10 attempts.
+      Don't confuse this crash with a PSB-related issue &mdash; it happens before any
+      config files are loaded.
+    </p>
+
+    <h2>Debugging Cheat Sheet</h2>
+    <table>
+      <tr><th>Observation</th><th>Likely Cause</th><th>Check</th></tr>
+      <tr>
+        <td>No output at all, immediate exit</td>
+        <td>Platform check crash</td>
+        <td>Exit code 99? Auto-retries handle this</td>
+      </tr>
+      <tr>
+        <td>gl_proxy ready, no SQ output, no sound</td>
+        <td>title_prof.psb.m malformed</td>
+        <td>Restore original title_prof, test again</td>
+      </tr>
+      <tr>
+        <td>SQ output normal, music, black screen</td>
+        <td>sor_* out of range OR motion PSB issue</td>
+        <td>Check all sor_* &lt; titleNum</td>
+      </tr>
+      <tr>
+        <td>SQ output, visuals, wrong/missing covers</td>
+        <td>Motion PSB icon mapping wrong</td>
+        <td>Check image indices and sprite sheet</td>
+      </tr>
+      <tr>
+        <td>Everything works, game won't launch</td>
+        <td>ROM path wrong in title_prof</td>
+        <td>Verify rom field matches actual file</td>
+      </tr>
+      <tr>
+        <td>"Decrypted data is not zstd"</td>
+        <td>File was renamed</td>
+        <td>Keep original filename for extract/build</td>
+      </tr>
+    </table>
+
+  </main>
+</body>
+</html>

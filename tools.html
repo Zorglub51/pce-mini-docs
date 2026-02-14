@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tools - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html" class="active">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Tools &amp; Toolchain</h1>
+    <p class="page-desc">
+      The tools used to extract, inspect, and rebuild PCE Mini data files.
+    </p>
+
+    <h2>mzstool.py</h2>
+    <p>
+      The core tool for working with MZS-encrypted PSB files. Handles the full pipeline:
+      extraction, JSON conversion, rebuilding, and re-encryption.
+    </p>
+
+    <h3>Requirements</h3>
+    <pre><code>pip3 install zstandard pillow</code></pre>
+
+    <h3>Commands</h3>
+    <table>
+      <tr><th>Command</th><th>Description</th><th>Example</th></tr>
+      <tr>
+        <td><code>extract</code></td>
+        <td>Full extract: .psb.m &rarr; JSON + PNG resources</td>
+        <td><code>mzstool.py extract file.psb.m</code></td>
+      </tr>
+      <tr>
+        <td><code>build</code></td>
+        <td>Full build: JSON + PNGs &rarr; .psb.m</td>
+        <td><code>mzstool.py build dir/file.json</code></td>
+      </tr>
+      <tr>
+        <td><code>unpack</code></td>
+        <td>MZS decrypt only: .psb.m &rarr; .psb</td>
+        <td><code>mzstool.py unpack file.psb.m</code></td>
+      </tr>
+      <tr>
+        <td><code>pack</code></td>
+        <td>MZS encrypt only: .psb &rarr; .psb.m</td>
+        <td><code>mzstool.py pack file.psb</code></td>
+      </tr>
+      <tr>
+        <td><code>psb2json</code></td>
+        <td>Convert PSB binary to JSON</td>
+        <td><code>mzstool.py psb2json file.psb</code></td>
+      </tr>
+      <tr>
+        <td><code>json2psb</code></td>
+        <td>Convert JSON to PSB binary</td>
+        <td><code>mzstool.py json2psb file.json</code></td>
+      </tr>
+    </table>
+
+    <h3>Extract Pipeline</h3>
+    <div class="diagram">
+  <span class="highlight">title_mode_top.psb.m</span>
+    |
+    |-- <span class="hl-blue">XOR decrypt</span> (key from filename)
+    |-- <span class="hl-blue">zstd decompress</span>
+    |-- <span class="hl-green">PSB parse</span> (binary &rarr; tree)
+    |-- <span class="hl-green">Export JSON</span>
+    \-- <span class="hl-green">Export resources</span> (textures &rarr; PNG)
+    |
+    v
+  <span class="highlight">title_mode_top/</span>
+    |- title_mode_top.json
+    |- tex#000.png  <span class="hl-dim">(if textures present)</span>
+    \- tex#001.png
+    </div>
+
+    <h3>Build Pipeline</h3>
+    <div class="diagram">
+  <span class="highlight">title_mode_top/title_mode_top.json</span>
+    |
+    |-- <span class="hl-green">Load JSON</span>
+    |-- <span class="hl-green">Import resources</span> (PNG &rarr; RGBA8)
+    |-- <span class="hl-green">Build PSB binary</span>
+    |-- <span class="hl-blue">zstd compress</span> (level 3)
+    \-- <span class="hl-blue">XOR encrypt</span> (key from output filename)
+    |
+    v
+  <span class="highlight">title_mode_top/title_mode_top.psb.m</span>
+    </div>
+
+    <div class="box box-warning">
+      <strong>Output filename determines encryption key</strong>
+      The build command derives the output filename from the JSON input path.
+      <code>title_mode_top/title_mode_top.json</code> &rarr; <code>title_mode_top.psb.m</code>.
+      The JSON filename MUST match the expected PSB filename.
+    </div>
+
+    <h2>build_gamepack.py</h2>
+    <p>
+      High-level tool that generates all four custom PSB files from an XML game list
+      and cover art PNGs.
+    </p>
+
+    <h3>Usage</h3>
+    <pre><code>python3 tools/build_gamepack.py gamepack.xml -o output_dir/</code></pre>
+
+    <h3>What it generates</h3>
+    <ol>
+      <li><code>040/config/title_mode_top.psb.m</code> &mdash; Game list</li>
+      <li><code>040/config/title_prof.psb.m</code> &mdash; Emulator config</li>
+      <li><code>040/motion/title_jp_titleselect_jp.psb.m</code> &mdash; JP covers</li>
+      <li><code>040/motion/title_jp_titleselect_us.psb.m</code> &mdash; US covers</li>
+    </ol>
+    <p>Also copies unchanged files (scripts, other configs) from the original alldata extraction.</p>
+
+    <h2>game_explorer.py</h2>
+    <p>
+      Web-based browser for inspecting PCE Mini game data. Reads directly from .psb.m files
+      and serves an interactive UI at <code>localhost:8080</code>.
+    </p>
+    <pre><code>python3 tools/game_explorer/game_explorer.py
+# Open http://localhost:8080</code></pre>
+    <p>Shows both JP and US lineups with cover art, ROM info, and emulator settings.</p>
+
+    <h2>Workflow</h2>
+    <div class="diagram">
+<span class="hl-blue">Typical modification workflow</span>
+
+  1. <span class="highlight">Extract</span> original .psb.m
+     $ mzstool.py extract 040/config/title_mode_top.psb.m
+
+  2. <span class="hl-green">Edit</span> the JSON
+     (modify game entries, titleNum, etc.)
+
+  3. <span class="highlight">Build</span> back to .psb.m
+     $ mzstool.py build title_mode_top/title_mode_top.json
+
+  4. <span class="hl-purple">Install</span> in run directory
+     $ cp title_mode_top/title_mode_top.psb.m run/040/config/
+
+  5. <span class="hl-green">Test</span> with m2engage
+     $ cd m2engage-pce-pi5 && ./run.sh
+    </div>
+
+  </main>
+</body>
+</html>

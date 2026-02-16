@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theme Selection - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="theme.html" class="active">Theme Selection</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Theme Selection</h1>
+    <p class="page-desc">
+      The settings menu allows the user to choose between the PC Engine and CoreGrafx
+      visual themes. This page documents the full settings screen, the frame/theme
+      selection sub-menu, and how the chosen theme propagates across the entire UI &mdash;
+      background motions, button icons, text colors, and transition animations.
+    </p>
+
+    <h2>Settings Menu Overview</h2>
+    <p>
+      The settings screen is managed by <code>system/script/mode_title_select_setting.nut</code>.
+      The entry point is <code>mode_title_select_setting_main()</code>, which creates a
+      <code>MenuSettingMain</code> instance (extends <code>MenuSettingBase</code>).
+    </p>
+    <p>
+      The UI config and text strings are loaded from:
+    </p>
+    <pre><code>config/mode_title_select_setting.psb</code></pre>
+
+    <h3>Main Menu Items</h3>
+    <table>
+      <tr>
+        <th>Constant</th>
+        <th>Value</th>
+        <th>m_mode</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>MENU_MANUAL</code></td>
+        <td>0</td>
+        <td>1</td>
+        <td>Digital manual</td>
+      </tr>
+      <tr>
+        <td><code>MENU_LANG</code></td>
+        <td>1</td>
+        <td>2</td>
+        <td>Language selection (6 languages + back)</td>
+      </tr>
+      <tr>
+        <td><code>MENU_SCREEN</code></td>
+        <td>2</td>
+        <td>3</td>
+        <td>Screen mode (aspect ratio, scanlines)</td>
+      </tr>
+      <tr>
+        <td><code>MENU_WALL</code></td>
+        <td>3</td>
+        <td>4</td>
+        <td>Wallpaper selection (4 options)</td>
+      </tr>
+      <tr class="highlight-row">
+        <td><code>MENU_FRAME</code></td>
+        <td>4</td>
+        <td>6</td>
+        <td>Frame/theme selection (PC Engine vs CoreGrafx)</td>
+      </tr>
+      <tr>
+        <td><code>MENU_CREDIT</code></td>
+        <td>5</td>
+        <td>&mdash;</td>
+        <td>Staff credits (loads <code>mode_staff.nut</code>)</td>
+      </tr>
+      <tr>
+        <td><code>MENU_SAVEINIT</code></td>
+        <td>6</td>
+        <td>5</td>
+        <td>Save data initialization (rapid-fire A to confirm)</td>
+      </tr>
+      <tr>
+        <td><code>MENU_EXIT</code></td>
+        <td>7</td>
+        <td>&mdash;</td>
+        <td>Exit settings</td>
+      </tr>
+    </table>
+
+    <h3>Sequence Flow</h3>
+    <pre><code>SEQ_OPEN  (0)  &rarr;  15 frames of open animation ("bg_open")
+SEQ_MAIN  (1)  &rarr;  Main input loop, dispatches to sub-menus via m_mode
+SEQ_CLOSE (2)  &rarr;  Save all settings to BACKUP_FLAGS, play "bg_close", exit</code></pre>
+
+    <h2>Motion Characters</h2>
+    <p>
+      Each sub-menu switches the background motion to a different <strong>chara</strong>
+      (character) within the same motion resource. The motion resource path is
+      <code>MENU_UI_TITLESELECT_MOTION_PATH</code>.
+    </p>
+    <table>
+      <tr>
+        <th>Chara</th>
+        <th>Sub-Menu</th>
+        <th>Motion</th>
+      </tr>
+      <tr>
+        <td><code>"setting"</code></td>
+        <td>Main menu</td>
+        <td><code>"bg_open"</code>, <code>"bg"</code>, <code>"bg_close"</code></td>
+      </tr>
+      <tr>
+        <td><code>"manual"</code></td>
+        <td>Digital manual</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"language"</code></td>
+        <td>Language selection</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"screen"</code></td>
+        <td>Screen mode</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"wallpaper"</code></td>
+        <td>Wallpaper</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr class="highlight-row">
+        <td><code>"frame"</code></td>
+        <td>Frame/theme</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"initialize"</code></td>
+        <td>Save init (JP lineup, PCE frame)</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"initialize_eu"</code></td>
+        <td>Save init (JP lineup, CoreGrafx frame)</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"initialize_us"</code></td>
+        <td>Save init (US lineup)</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"warning"</code></td>
+        <td>Warning screen</td>
+        <td><code>"bg"</code></td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Note</strong>
+      The save initialization screen picks its chara based on the current frame setting:
+      <code>"initialize"</code> for PC Engine, <code>"initialize_eu"</code> for CoreGrafx.
+      When on the US lineup, it always uses <code>"initialize_us"</code>.
+    </div>
+
+    <h2>Frame/Theme Selection (m_mode == 6)</h2>
+
+    <h3>Constants</h3>
+    <p>
+      Defined in <code>system/script/const.nut</code>:
+    </p>
+    <pre><code>const FRAME_PCENGINE  = 0;
+const FRAME_COREGRAFX = 1;</code></pre>
+
+    <h3>Variables</h3>
+    <table>
+      <tr>
+        <th>Variable</th>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>m_indexFrame</code></td>
+        <td>0 or 1</td>
+        <td>Current cursor position (0 = PC Engine, 1 = CoreGrafx)</td>
+      </tr>
+      <tr>
+        <td><code>m_indexFrameStting</code></td>
+        <td>0 or 1</td>
+        <td>Confirmed/saved frame type</td>
+      </tr>
+      <tr>
+        <td><code>m_indexFrameEffectStting</code></td>
+        <td>0 or 1</td>
+        <td>Frame animation effect toggle (0 = off, 1 = on)</td>
+      </tr>
+      <tr>
+        <td><code>m_indexFrameExit</code></td>
+        <td>0 or 1</td>
+        <td>Whether cursor is on the frame slots (0) or exit button (1)</td>
+      </tr>
+    </table>
+
+    <h3>Motion Variables</h3>
+    <p>
+      These variables are set on the <code>"frame"</code> chara motion to control the visual state:
+    </p>
+    <table>
+      <tr>
+        <th>Variable</th>
+        <th>Values</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>screen_sel</code></td>
+        <td>0 or 2</td>
+        <td>Selected slot (0 = PC Engine, 2 = CoreGrafx)</td>
+      </tr>
+      <tr>
+        <td><code>active_slot</code></td>
+        <td>0 or 2</td>
+        <td>Highlighted slot (same mapping as screen_sel)</td>
+      </tr>
+      <tr>
+        <td><code>logoflash</code></td>
+        <td>0, 1, or 3</td>
+        <td>Logo flash on confirm: 0 = none, 1 = PC Engine, 3 = CoreGrafx</td>
+      </tr>
+      <tr>
+        <td><code>crt</code></td>
+        <td>0 or 1</td>
+        <td>Frame animation effect (mirrors <code>m_indexFrameEffectStting</code>)</td>
+      </tr>
+      <tr>
+        <td><code>animation</code></td>
+        <td>1</td>
+        <td>Set to 1 on entering the frame sub-menu</td>
+      </tr>
+    </table>
+
+    <div class="box box-warning">
+      <strong>Slot index quirk</strong>
+      <code>m_indexFrame</code> uses 0/1, but the motion variables <code>screen_sel</code>
+      and <code>active_slot</code> use 0/2 (not 0/1). When CoreGrafx is selected,
+      the code sets <code>screen_sel = 2</code> and <code>active_slot = 2</code>.
+      Similarly, <code>logoflash</code> uses the formula <code>1 + slot_value</code>
+      (1 for PCE, 3 for CoreGrafx).
+    </div>
+
+    <h3>User Controls</h3>
+    <table>
+      <tr>
+        <th>Button</th>
+        <th>Action</th>
+      </tr>
+      <tr>
+        <td>LEFT / RIGHT</td>
+        <td>Toggle between PC Engine (0) and CoreGrafx (1)</td>
+      </tr>
+      <tr>
+        <td>UP / DOWN</td>
+        <td>Move between frame slots and exit button</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>Confirm frame selection (triggers logoflash) or exit</td>
+      </tr>
+      <tr>
+        <td>B</td>
+        <td>Back to main settings menu</td>
+      </tr>
+      <tr>
+        <td>START</td>
+        <td>Toggle frame animation effect (0 &harr; 1)</td>
+      </tr>
+    </table>
+
+    <h3>Cursor Positions</h3>
+    <p>
+      <code>getCurPositionFrame(index)</code> returns the cursor position for each slot:
+    </p>
+    <pre><code>PC Engine:  x = -178, y = 96
+CoreGrafx:  x =  178, y = 96
+Exit:       x =    0, y = 220</code></pre>
+
+    <h2>Cursor System (SettingCorsol)</h2>
+    <p>
+      The cursor is a separate class that uses the <code>"cursol"</code> chara in the
+      same motion resource. It smoothly glides to target positions using homing movement
+      (<code>PointDir</code> + <code>TragetKinspeed_Option</code> + <code>DirMove</code>).
+    </p>
+
+    <h3>Cursor Motions</h3>
+    <table>
+      <tr>
+        <th>setScreenCorsol()</th>
+        <th>Motion</th>
+        <th>Variable</th>
+        <th>Used For</th>
+      </tr>
+      <tr>
+        <td>0</td>
+        <td><code>"pause"</code></td>
+        <td>&mdash;</td>
+        <td>Main menu items</td>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td><code>"screen"</code></td>
+        <td>&mdash;</td>
+        <td>Screen mode selection</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><code>"screen_back"</code></td>
+        <td>&mdash;</td>
+        <td>Exit / back button</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><code>"wallpaper"</code></td>
+        <td>&mdash;</td>
+        <td>Wallpaper selection</td>
+      </tr>
+      <tr class="highlight-row">
+        <td>4</td>
+        <td><code>"frame"</code></td>
+        <td><code>size = 0</code></td>
+        <td>Frame: PC Engine selected</td>
+      </tr>
+      <tr class="highlight-row">
+        <td>6</td>
+        <td><code>"frame"</code></td>
+        <td><code>size = 2</code></td>
+        <td>Frame: CoreGrafx selected</td>
+      </tr>
+    </table>
+
+    <h2>Saved Settings (BACKUP_FLAGS)</h2>
+    <p>
+      All settings are persisted via <code>g_systemdata</code> using
+      <code>SystemDataValueIndex.BACKUP_FLAGS</code>. They are read on
+      <code>init()</code> and written on <code>SEQ_CLOSE</code>:
+    </p>
+    <table>
+      <tr>
+        <th>Setting</th>
+        <th>Getter</th>
+        <th>Setter</th>
+        <th>Variable</th>
+      </tr>
+      <tr>
+        <td>Screen mode</td>
+        <td><code>get_05_last_screen()</code></td>
+        <td><code>set_05_last_screen()</code></td>
+        <td><code>m_indexScreenStting</code></td>
+      </tr>
+      <tr>
+        <td>Language</td>
+        <td><code>getlastLanguage()</code></td>
+        <td><code>set_06_last_language()</code></td>
+        <td><code>m_current_language</code></td>
+      </tr>
+      <tr>
+        <td>Wallpaper</td>
+        <td><code>get_71_wallPaper()</code></td>
+        <td><code>set_71_wallPaper()</code></td>
+        <td><code>m_indexWallStting</code></td>
+      </tr>
+      <tr>
+        <td>Screen CRT effect</td>
+        <td><code>get_72_screenEffect()</code></td>
+        <td><code>set_72_screenEffect()</code></td>
+        <td><code>m_indexScreenEffectStting</code></td>
+      </tr>
+      <tr class="highlight-row">
+        <td>Frame type</td>
+        <td><code>get_74_frameType()</code></td>
+        <td><code>set_74_frameType()</code></td>
+        <td><code>m_indexFrameStting</code></td>
+      </tr>
+      <tr class="highlight-row">
+        <td>Frame animation</td>
+        <td><code>get_76_frameAnime()</code></td>
+        <td><code>set_76_frameAnime()</code></td>
+        <td><code>m_indexFrameEffectStting</code></td>
+      </tr>
+      <tr>
+        <td>Burn-in prevention</td>
+        <td><code>get_77_BurnInPrevention()</code></td>
+        <td><code>set_77_BurnInPrevention()</code></td>
+        <td><code>m_indexWallSEffectStting</code></td>
+      </tr>
+    </table>
+    <p>
+      After writing all flags, the system calls <code>g_systemdata.TryAutosave(true)</code>
+      to persist to storage.
+    </p>
+
+    <h2>Config PSB Sections</h2>
+    <p>
+      The config file <code>mode_title_select_setting.psb</code> contains text and guide
+      data for each sub-menu. Each section has a caption
+      (<code>SettingMainText__CAPTION</code>), text items
+      (<code>SettingMainText__1</code>, <code>__2</code>, etc.), a URL
+      (<code>SettingMainText__URL</code>), and guide entries with icons
+      (<code>SettingMainIcon__0</code>) and labels (<code>SettingMainText__0</code>).
+    </p>
+    <table>
+      <tr>
+        <th>Section</th>
+        <th>Guide Section</th>
+        <th>Guide Count</th>
+        <th>Sub-Menu</th>
+      </tr>
+      <tr>
+        <td><code>MAIN</code></td>
+        <td><code>GUIDE_MAIN</code></td>
+        <td>4</td>
+        <td>Main settings</td>
+      </tr>
+      <tr>
+        <td><code>MANUAL</code></td>
+        <td><code>GUIDE_MANUAL</code></td>
+        <td>3</td>
+        <td>Digital manual</td>
+      </tr>
+      <tr>
+        <td><code>LANG</code></td>
+        <td><code>GUIDE_LANG</code></td>
+        <td>3</td>
+        <td>Language</td>
+      </tr>
+      <tr>
+        <td><code>SCREEN</code></td>
+        <td><code>GUIDE_SCREEN</code> / <code>GUIDE_SCREEN_GT</code></td>
+        <td>4</td>
+        <td>Screen mode</td>
+      </tr>
+      <tr>
+        <td><code>WALL</code></td>
+        <td><code>GUIDE_WALL</code></td>
+        <td>4</td>
+        <td>Wallpaper</td>
+      </tr>
+      <tr class="highlight-row">
+        <td><code>FRAME</code></td>
+        <td><code>GUIDE_FRAME</code></td>
+        <td>4</td>
+        <td>Frame/theme</td>
+      </tr>
+      <tr>
+        <td><code>INIT</code></td>
+        <td><code>GUIDE_SAVEINIT</code></td>
+        <td>2</td>
+        <td>Save init</td>
+      </tr>
+      <tr>
+        <td><code>INIT_WARNING</code></td>
+        <td><code>GUIDE_INIT_WARNING</code></td>
+        <td>3</td>
+        <td>Init confirmation</td>
+      </tr>
+      <tr>
+        <td><code>WARNING</code></td>
+        <td><code>GUIDE_WARNING</code></td>
+        <td>3</td>
+        <td>Warning screen</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>US variant</strong>
+      The manual sub-menu has an additional <code>MANUAL_US</code> section with a different
+      URL for the US retail version (<code>DEVID_US</code>).
+    </div>
+
+    <h2>Motion Variables (Background)</h2>
+    <p>
+      The background motion (<code>m_motion_bg</code>) uses several variables that are set
+      globally on init and adjusted per sub-menu:
+    </p>
+    <table>
+      <tr>
+        <th>Variable</th>
+        <th>Set On</th>
+        <th>Values</th>
+      </tr>
+      <tr>
+        <td><code>lang</code></td>
+        <td>init + language change</td>
+        <td>Language constant (<code>LANGUAGE_JPN</code>, etc.)</td>
+      </tr>
+      <tr>
+        <td><code>lang_start</code></td>
+        <td>language change</td>
+        <td>Same as <code>lang</code></td>
+      </tr>
+      <tr>
+        <td><code>lineup</code></td>
+        <td>init</td>
+        <td><code>s_last_linenp</code> (JP or US lineup)</td>
+      </tr>
+      <tr>
+        <td><code>region</code></td>
+        <td>init</td>
+        <td>0 = JP, 1 = US</td>
+      </tr>
+      <tr>
+        <td><code>over0</code>&ndash;<code>over7</code></td>
+        <td>language change</td>
+        <td>0 = normal, 2 = active (for language highlight)</td>
+      </tr>
+    </table>
+
+    <h2>Layer Priorities</h2>
+    <table>
+      <tr>
+        <th>Constant</th>
+        <th>Value</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>PRI_BG</code></td>
+        <td>30</td>
+        <td>Background motion layer</td>
+      </tr>
+      <tr>
+        <td><code>PRI_TEXT</code></td>
+        <td>35</td>
+        <td>Text / indicator layer</td>
+      </tr>
+      <tr>
+        <td><code>PRI_CSL</code></td>
+        <td>40</td>
+        <td>Cursor layer</td>
+      </tr>
+    </table>
+
+    <h2>Theme Propagation Across the UI</h2>
+    <p class="page-desc">
+      The frame type choice doesn't just affect the settings screen &mdash; it propagates to
+      several systems throughout the UI. The key functions are defined in
+      <code>system/script/utils.nut</code> and consumed by the title select screen
+      and the wallpaper background class.
+    </p>
+
+    <div class="box box-warning">
+      <strong>JP lineup only</strong>
+      The frame type setting only affects visuals when the <strong>JP (PC Engine) lineup</strong>
+      is active. When the US (TurboGrafx-16) lineup is selected, all theme-dependent code
+      uses fixed US-specific values &mdash; the frame type is ignored entirely. This is
+      consistent throughout: <code>getBGMotionName()</code>, <code>getFrameTypeGuideText()</code>,
+      <code>MenuModeGuide</code> color, and the save init screen chara all check the lineup
+      first and bypass the frame type when on US.
+    </div>
+
+    <h3>Background Motion Character</h3>
+    <p>
+      <code>getBGMotionName()</code> (utils.nut:2416) is the primary mechanism. It returns the
+      motion <strong>chara</strong> name for all background layers based on the current lineup
+      and frame type:
+    </p>
+    <table>
+      <tr>
+        <th>Lineup</th>
+        <th>Frame Type</th>
+        <th>Chara Returned</th>
+      </tr>
+      <tr>
+        <td>US</td>
+        <td>(ignored)</td>
+        <td><code>"bg_us"</code> &mdash; always</td>
+      </tr>
+      <tr>
+        <td>JP</td>
+        <td>PC Engine (0)</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td>JP</td>
+        <td>CoreGrafx (1)</td>
+        <td><code>"bg_eu"</code></td>
+      </tr>
+    </table>
+    <p>
+      This chara is applied to three sets of motion objects on the title select screen
+      (<code>mode_title_select.nut</code>):
+    </p>
+    <ul>
+      <li><code>m_motion_bg</code> &mdash; upper background, motion <code>"main"</code></li>
+      <li><code>m_motion_bg_down</code> &mdash; lower background, motion <code>"main_down"</code></li>
+      <li><code>m_motion_bg_back[]</code> &mdash; scrolling background array (×<code>BGBACK_NUM</code>), motion <code>"back"</code></li>
+    </ul>
+    <p>
+      There is also <code>getGameStartBGMotionName()</code> (utils.nut:2439) which returns
+      the same values and is used when launching a game.
+    </p>
+
+    <div class="box box-info">
+      <strong>Hot-reload after settings change</strong>
+      When the user exits settings, <code>mode_title_select.nut</code> (line 1271) compares
+      <code>frameTypeOld</code> with the current value. If changed, it checks
+      <code>s_last_linenp == LINEUP_JP</code> before reloading &mdash; on the US lineup
+      the chara is always <code>"bg_us"</code> so no reload is ever needed.
+    </div>
+
+    <h3>WallpaperBG Class</h3>
+    <p>
+      The <code>WallpaperBG</code> class (<code>system/script/wallpaperBG.nut</code>) manages
+      background visuals during transitions (e.g. returning from game to menu). It also uses
+      <code>getBGMotionName()</code> and <code>getFrameOffset()</code>:
+    </p>
+    <pre><code>m_motion.chara = getBGMotionName();        // upper BG
+m_motion_back.chara = getBGMotionName();   // lower BG
+m_motion.top = -1 * getFrameOffset();
+m_motion_back.top = getFrameOffset();
+
+for (i = 0; i &lt; BGBACK_NUM; i++) {
+    m_motion_bg_back[i].chara = getBGMotionName();  // scrolling BG
+}</code></pre>
+
+    <h3>Frame Offset Animation (Startup Convergence)</h3>
+    <p>
+      On program launch, the different parts of the UI converge from outside the screen
+      toward the center to form the final layout, while game thumbnails and the selection
+      menu fade in. Three functions in <code>utils.nut</code> manage this:
+    </p>
+    <table>
+      <tr>
+        <th>Function</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>setFrameinOut()</code></td>
+        <td>Triggers animation by setting <code>s_frame_offset = 30</code></td>
+      </tr>
+      <tr>
+        <td><code>FrameinOutExec()</code></td>
+        <td>Called each frame in the main loop; decrements <code>s_frame_offset</code> toward 0</td>
+      </tr>
+      <tr>
+        <td><code>getFrameOffset()</code></td>
+        <td>Returns <code>(s_frame_offset&sup2;) / 3</code> &mdash; quadratic ease-in (fast start, smooth settle)</td>
+      </tr>
+    </table>
+    <p>
+      At frame 0 the offset is <code>900/3 = 300</code> pixels, pushing UI elements far
+      off-screen. It decays quadratically over 30 frames until it reaches 0, at which point
+      all elements are in their final positions. The offset then stays at 0 for the rest
+      of program execution.
+    </p>
+    <p>
+      The offset is applied to every major element's position, creating the convergence effect:
+    </p>
+    <table>
+      <tr>
+        <th>Element</th>
+        <th>Offset Applied</th>
+        <th>Effect</th>
+      </tr>
+      <tr>
+        <td>Upper BG (<code>m_motion_bg.top</code>)</td>
+        <td><code>-1 &times; getFrameOffset()</code></td>
+        <td>Slides in from above</td>
+      </tr>
+      <tr>
+        <td>Lower BG (<code>m_motion_bg_down.top</code>)</td>
+        <td><code>+1 &times; getFrameOffset()</code></td>
+        <td>Slides in from below</td>
+      </tr>
+      <tr>
+        <td>Game thumbnails</td>
+        <td><code>THUMBNAIL_Y - getFrameOffset()</code></td>
+        <td>Drop in from above</td>
+      </tr>
+      <tr>
+        <td>Thumbnail X positions</td>
+        <td><code>-2&times;</code>, <code>-1&times;</code>, <code>+1&times;</code>, <code>+2&times;</code> multipliers</td>
+        <td>Fan in from left/right</td>
+      </tr>
+      <tr>
+        <td>Cursor, title text, guide icons</td>
+        <td><code>+/- getFrameOffset()</code></td>
+        <td>Converge to final position</td>
+      </tr>
+      <tr>
+        <td>Settings/Sort labels</td>
+        <td><code>y + getFrameOffset()</code></td>
+        <td>Slide in from below</td>
+      </tr>
+    </table>
+
+    <div class="box box-info">
+      <strong>Re-trigger points</strong>
+      <code>setFrameinOut()</code> is called on first load, but also after exiting settings
+      (if save data was initialized), after a frame type change, after a lineup switch, and
+      when returning from a game &mdash; replaying the convergence animation each time.
+    </div>
+
+    <h3>Guide Button Icons</h3>
+    <p>
+      <code>getFrameTypeGuideText()</code> (utils.nut:2485) remaps button icon characters
+      depending on the lineup and theme. The US lineup has its own fixed remapping that
+      ignores the frame type. On the JP lineup, the frame type selects between two
+      icon sets. The custom font uses Cyrillic characters as symbol codes for
+      controller button glyphs:
+    </p>
+    <table>
+      <tr>
+        <th>Default Icon</th>
+        <th>PC Engine (JP)</th>
+        <th>CoreGrafx (JP)</th>
+        <th>US Lineup</th>
+      </tr>
+      <tr>
+        <td><code>&#x0399;</code> (Iota)</td>
+        <td><code>&#x0399;</code> (unchanged)</td>
+        <td><code>&#x0416;</code> (Zhe)</td>
+        <td><code>&#x0418;</code> (I)</td>
+      </tr>
+      <tr>
+        <td><code>&#x039A;</code> (Kappa)</td>
+        <td><code>&#x039A;</code> (unchanged)</td>
+        <td><code>&#x0411;</code> (Be)</td>
+        <td><code>&#x041B;</code> (El)</td>
+      </tr>
+      <tr>
+        <td><code>&#x039C;</code> (Mu)</td>
+        <td><code>&#x039C;</code> (unchanged)</td>
+        <td><code>&#x0413;</code> (Ge)</td>
+        <td><code>&#x0426;</code> (Tse)</td>
+      </tr>
+      <tr>
+        <td><code>&#x039B;</code> (Lambda)</td>
+        <td><code>&#x039B;</code> (unchanged)</td>
+        <td><code>&#x0431;</code> (be)</td>
+        <td><code>&#x041F;</code> (Pe)</td>
+      </tr>
+    </table>
+    <p>
+      Each character maps to a specific button glyph (I, II, SELECT, RUN etc.) in M2's
+      custom icon font. The different Cyrillic codepoints map to visually distinct button
+      styles matching each console's aesthetic.
+    </p>
+
+    <h3>Guide Text Color</h3>
+    <p>
+      The <code>MenuModeGuide</code> class (utils.nut:2545) can optionally tint guide text
+      based on the frame type. When <code>colorChange = true</code>:
+    </p>
+    <ul>
+      <li><strong>JP + PC Engine</strong> &rarr; blue text prefix: <code>#{color,00000FF}</code></li>
+      <li><strong>JP + CoreGrafx</strong> &rarr; no color change (default text color)</li>
+      <li><strong>US lineup</strong> &rarr; no color change (frame type ignored)</li>
+    </ul>
+
+    <h3>Initial Language Selection</h3>
+    <p>
+      On first boot, the language selection screen
+      (<code>mode_title_select_settinglang.nut</code>) auto-sets the frame type based on
+      the chosen language. This only applies to the <strong>US/EU retail version</strong>
+      (<code>DEVID_US</code>):
+    </p>
+    <table>
+      <tr>
+        <th>Language</th>
+        <th>Frame Type</th>
+        <th>Default Lineup</th>
+      </tr>
+      <tr>
+        <td>Japanese</td>
+        <td>PC Engine (0)</td>
+        <td>(unchanged)</td>
+      </tr>
+      <tr>
+        <td>English</td>
+        <td>CoreGrafx (1)</td>
+        <td>(unchanged)</td>
+      </tr>
+      <tr>
+        <td>French</td>
+        <td>CoreGrafx (1)</td>
+        <td>JP</td>
+      </tr>
+      <tr>
+        <td>Italian</td>
+        <td>CoreGrafx (1)</td>
+        <td>JP</td>
+      </tr>
+      <tr>
+        <td>German</td>
+        <td>CoreGrafx (1)</td>
+        <td>JP</td>
+      </tr>
+      <tr>
+        <td>Spanish</td>
+        <td>CoreGrafx (1)</td>
+        <td>JP</td>
+      </tr>
+    </table>
+    <p>
+      On the <strong>JP retail version</strong> (<code>DEVID_JP</code>), the language choice
+      does not change the frame type &mdash; it stays PC Engine.
+    </p>
+
+    <div class="box box-warning">
+      <strong>European languages set JP lineup</strong>
+      On the US/EU retail version, choosing French, Italian, German, or Spanish not only sets
+      the CoreGrafx frame but also switches the default lineup to JP (PC Engine games).
+      This makes sense because the EU version was sold as "CoreGrafx Mini" and these
+      languages were targeted at the European market.
+    </div>
+
+    <h3>Factory Defaults</h3>
+    <p>
+      The default values in <code>systemdata_backup_flags.nut</code> depend on the retail version:
+    </p>
+    <table>
+      <tr>
+        <th>Retail Version</th>
+        <th><code>_74_frameType</code></th>
+        <th><code>_75_hardType</code></th>
+      </tr>
+      <tr>
+        <td><code>DEVID_JP</code> (PC Engine Mini)</td>
+        <td>0 (PC Engine)</td>
+        <td><code>LINEUP_JP</code></td>
+      </tr>
+      <tr>
+        <td><code>DEVID_US</code> (TurboGrafx-16 / CoreGrafx Mini)</td>
+        <td>1 (CoreGrafx)</td>
+        <td><code>LINEUP_US</code></td>
+      </tr>
+    </table>
+
+    <h3>Complete Propagation Flow</h3>
+    <div class="diagram">
+<span class="hl-blue">User selects frame type in settings</span>
+  |
+  v
+<span class="highlight">set_74_frameType()</span> &rarr; persisted to BACKUP_FLAGS
+  |
+  v
+<span class="hl-blue">Exit settings menu</span>
+  |
+  +&rarr; Compare frameTypeOld vs current
+  |     If changed <span class="hl-green">AND</span> lineup == JP:
+  |       |
+  |       +&rarr; <span class="highlight">setFrameinOut()</span>      &rarr; triggers 30-frame bounce animation
+  |       +&rarr; <span class="highlight">getBGMotionName()</span>  &rarr; returns "bg" or "bg_eu"
+  |       +&rarr; Reload all BG layers with new chara:
+  |             m_motion_bg.chara      = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
+  |             m_motion_bg_down.chara = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
+  |             m_motion_bg_back[].chara = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
+  |
+  +&rarr; <span class="highlight">getFrameTypeGuideText()</span>  &rarr; remap button icon glyphs
+  +&rarr; <span class="highlight">MenuModeGuide</span> color     &rarr; blue tint for PCE, default for CoreGrafx
+  +&rarr; <span class="highlight">WallpaperBG</span>              &rarr; uses same getBGMotionName() on next open
+    </div>
+
+  </main>
+</body>
+</html>

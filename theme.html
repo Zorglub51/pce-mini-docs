@@ -270,12 +270,12 @@ const FRAME_COREGRAFX = 1;</code></pre>
     </table>
 
     <div class="box box-warning">
-      <strong>Slot index quirk</strong>
+      <strong>Slot index quirk &mdash; explained by cut content</strong>
       <code>m_indexFrame</code> uses 0/1, but the motion variables <code>screen_sel</code>
-      and <code>active_slot</code> use 0/2 (not 0/1). When CoreGrafx is selected,
-      the code sets <code>screen_sel = 2</code> and <code>active_slot = 2</code>.
-      Similarly, <code>logoflash</code> uses the formula <code>1 + slot_value</code>
-      (1 for PCE, 3 for CoreGrafx).
+      and <code>active_slot</code> use 0/2 (not 0/1). This is because the motion assets
+      originally had <strong>3 slots</strong> (0 = PC Engine, 1 = TurboGrafx-16, 2 = CoreGrafx)
+      and slot 1 was removed from the UI without renumbering. See
+      <a href="#motion-psb-structure">Motion PSB Structure</a> below.
     </div>
 
     <h3>User Controls</h3>
@@ -567,6 +567,158 @@ Exit:       x =    0, y = 220</code></pre>
         <td>Cursor layer</td>
       </tr>
     </table>
+
+    <h2 id="motion-psb-structure">Motion PSB Structure &amp; Design Evolution</h2>
+
+    <h3>The UI Motion File</h3>
+    <p>
+      All theme-related visuals come from a single motion PSB file:
+    </p>
+    <pre><code>const MENU_UI_TITLESELECT_MOTION_PATH = "system/motion/titleselect_ui.psb";</code></pre>
+    <p>
+      Defined in <code>system/script/const.nut</code>. The file contains a single 1024&times;808
+      sprite sheet (<code>_stream_0.png</code>) and <strong>339 icons</strong>, organized into
+      27 charas (top-level objects).
+    </p>
+
+    <h3>Theme-Related Charas</h3>
+    <table>
+      <tr>
+        <th>Chara</th>
+        <th>Role</th>
+        <th>Motions</th>
+      </tr>
+      <tr>
+        <td><code>bg</code></td>
+        <td>PC Engine frame (JP)</td>
+        <td rowspan="3">Identical structure: <code>main</code>, <code>main_down</code>, <code>back</code>,
+          <code>main_in</code>, <code>main_out</code>, <code>hucard</code>, <code>cdcase</code>,
+          <code>boot_*</code>, <code>sort_*</code>, <code>setting_*</code>, etc.
+          (~80 motions each)</td>
+      </tr>
+      <tr>
+        <td><code>bg_eu</code></td>
+        <td>CoreGrafx frame (JP)</td>
+      </tr>
+      <tr>
+        <td><code>bg_us</code></td>
+        <td>TurboGrafx-16 frame (US)</td>
+      </tr>
+      <tr>
+        <td><code>frame</code></td>
+        <td>Frame selection screen</td>
+        <td><code>bg</code>, <code>screen_0/1/2</code>, <code>logo_0/1/2</code>,
+          <code>logoflash_0/1/2</code>, <code>tile_0/1/2</code>,
+          <code>screen_slot_active_jp/eu/us</code>, <code>screen_slot_normal</code>,
+          <code>noise</code>, etc.</td>
+      </tr>
+      <tr>
+        <td><code>initialize</code></td>
+        <td>Save init (PCE frame)</td>
+        <td rowspan="3">Save data initialization screens</td>
+      </tr>
+      <tr>
+        <td><code>initialize_eu</code></td>
+        <td>Save init (CoreGrafx)</td>
+      </tr>
+      <tr>
+        <td><code>initialize_us</code></td>
+        <td>Save init (TG16)</td>
+      </tr>
+    </table>
+
+    <p>
+      The three background charas (<code>bg</code>, <code>bg_eu</code>, <code>bg_us</code>)
+      have <strong>strictly identical structure</strong> &mdash; same motions, same number of
+      layers and frames. Only the <strong>icon references differ</strong>, pointing to
+      different sprites in the texture sheet.
+    </p>
+
+    <h3>Three Slots in the Frame Selection Screen</h3>
+    <p>
+      The <code>frame</code> chara contains assets for <strong>three</strong> theme slots,
+      not two:
+    </p>
+    <table>
+      <tr>
+        <th>Slot</th>
+        <th>screen_slot_active</th>
+        <th>Logo</th>
+        <th>Slot Sprite Icon</th>
+        <th>Logo Sprite Icon</th>
+        <th>Theme</th>
+      </tr>
+      <tr>
+        <td><strong>0</strong></td>
+        <td><code>screen_slot_active_jp</code></td>
+        <td><code>logo_0</code></td>
+        <td>0187 (81&times;44)</td>
+        <td>0188 (160&times;85)</td>
+        <td>PC Engine</td>
+      </tr>
+      <tr>
+        <td><strong>1</strong></td>
+        <td><code>screen_slot_active_us</code></td>
+        <td><code>logo_1</code></td>
+        <td>0190 (88&times;124)</td>
+        <td>0190 (88&times;124)</td>
+        <td>TurboGrafx-16</td>
+      </tr>
+      <tr>
+        <td><strong>2</strong></td>
+        <td><code>screen_slot_active_eu</code></td>
+        <td><code>logo_2</code></td>
+        <td>0185 (76&times;46)</td>
+        <td>0186 (150&times;92)</td>
+        <td>CoreGrafx</td>
+      </tr>
+    </table>
+    <p>
+      Each slot also has: <code>tile_N</code> / <code>tile_Nr</code> (selection tiles),
+      <code>logoflash_N</code> (confirmation flash animation), and
+      <code>screen_slot_active_*_ani</code> (idle animation).
+      The Squirrel code only exposes slots 0 and 2, leaving slot 1 unused.
+    </p>
+
+    <h3>Design Evolution</h3>
+    <div class="box box-info">
+      <strong>From 3 themes to 2 lineups</strong>
+      The motion assets reveal that M2 originally planned a design where a single lineup
+      offered <strong>3 selectable themes</strong> (PC Engine, TurboGrafx-16, CoreGrafx).
+      This was later changed to the final design with <strong>2 lineups</strong>, where the
+      TurboGrafx-16 theme became permanently tied to the US lineup via
+      <code>getBGMotionName()</code> returning <code>"bg_us"</code>, and the JP lineup
+      retained a choice between PC Engine and CoreGrafx.
+    </div>
+
+    <div class="diagram">
+<span class="hl-blue">Original design (assets still present)</span>
+  1 lineup, 3 selectable themes:
+    slot 0 = PC Engine      (<span class="hl-green">screen_sel = 0</span>)
+    slot 1 = TurboGrafx-16  (<span class="hl-green">screen_sel = 1</span>)
+    slot 2 = CoreGrafx      (<span class="hl-green">screen_sel = 2</span>)
+
+<span class="hl-blue">Final design (shipping code)</span>
+  2 lineups, theme per lineup:
+    JP lineup → choice: PC Engine (<span class="hl-green">screen_sel = 0</span>)
+                     or CoreGrafx (<span class="hl-green">screen_sel = 2</span>)
+    US lineup → fixed:  TurboGrafx-16 (via <span class="highlight">"bg_us"</span>, no selection)
+
+  Slot 1 skipped in UI → explains the 0/2 quirk
+    </div>
+
+    <p>
+      This evolution also explains several other quirks:
+    </p>
+    <ul>
+      <li>The <code>screen_sel</code> / <code>active_slot</code> values skip 1 (use 0 and 2)</li>
+      <li>The <code>logoflash</code> formula <code>1 + slot_value</code> produces 1 and 3
+        (not 1 and 2)</li>
+      <li>The US lineup completely ignores <code>_74_frameType</code> &mdash; its theme is
+        hardcoded in <code>getBGMotionName()</code></li>
+      <li>There are 3 <code>padicon</code> charas: <code>padicon</code>, <code>padicon_eu</code>,
+        <code>padicon_us</code> &mdash; matching the original 3-theme plan</li>
+    </ul>
 
     <h2>Theme Propagation Across the UI</h2>
     <p class="page-desc">

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Theme Selection - PCE Mini Internals</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .badge-pce { background: #1565c0; color: #fff; }
+    .badge-tg16 { background: #e65100; color: #fff; }
+    .badge-cg { background: #2e7d32; color: #fff; }
+    .badge-mod { background: #e44; color: #fff; }
+    .badge-orig { background: var(--bg-tertiary); color: var(--text-muted); border: 1px solid var(--border); }
+    .slots-row { display: flex; gap: 16px; justify-content: center; margin: 24px 0; }
+    .slot-box { text-align: center; padding: 12px 20px; border: 2px solid var(--border); border-radius: 8px; min-width: 150px; background: var(--bg-secondary); }
+    .slot-box.slot-new { border-color: var(--danger); border-style: dashed; }
+  </style>
 </head>
 <body>
   <nav>
@@ -41,14 +51,145 @@
   </nav>
 
   <main>
-    <h1>Theme Selection</h1>
+    <h1>Theme Selection <span class="tag">MOD</span></h1>
     <p class="page-desc">
-      The settings menu allows the user to choose between the PC Engine and CoreGrafx
-      visual themes. This page documents the full settings screen, the frame/theme
-      selection sub-menu, and how the chosen theme propagates across the entire UI &mdash;
-      background motions, button icons, text colors, and transition animations.
+      The settings menu allows the user to choose between visual themes for the JP lineup.
+      M2 shipped with two themes (PC Engine and CoreGrafx) but the motion PSB contains complete
+      artwork for a third hidden theme (TurboGrafx-16). This page documents the full settings
+      screen, the frame/theme selection sub-menu, how the chosen theme propagates across the
+      entire UI, and the modification that exposes all three themes.
     </p>
 
+    <!-- ============================================================ -->
+    <h2>3rd Theme Modification Overview</h2>
+
+    <div class="box box-danger">
+      <strong>Modification summary</strong>
+      The <code>titleselect_ui.psb</code> motion file contains complete artwork for <strong>3 theme
+      slots</strong> (PC Engine, TurboGrafx-16, CoreGrafx) but M2 only exposed slots 0 and 2 in the
+      shipping code. This mod exposes all 3 slots in the JP lineup's frame selection screen. 5 Squirrel
+      source files were modified &mdash; all changes are marked with <code>[MOD] 3rd theme:</code> comments
+      that explain what was changed and preserve the original code as comments.
+    </div>
+
+    <div class="slots-row">
+      <div class="slot-box">
+        <span class="badge badge-pce">Slot 0</span><br>
+        <strong>PC Engine</strong><br>
+        <code>x = -178</code> (left)<br>
+        <code>chara: "bg"</code>
+      </div>
+      <div class="slot-box slot-new">
+        <span class="badge badge-tg16">Slot 1</span> <span class="badge badge-mod">NEW</span><br>
+        <strong>TurboGrafx-16</strong><br>
+        <code>x = 0</code> (center)<br>
+        <code>chara: "bg_us"</code>
+      </div>
+      <div class="slot-box">
+        <span class="badge badge-cg">Slot 2</span><br>
+        <strong>CoreGrafx</strong><br>
+        <code>x = +178</code> (right)<br>
+        <code>chara: "bg_eu"</code>
+      </div>
+    </div>
+
+    <h3>Constant Renumbering</h3>
+    <p>
+      The constants were renumbered so they directly match the motion PSB slot indices,
+      eliminating the remapping that the original code had to do:
+    </p>
+    <table>
+      <tr>
+        <th>Constant</th>
+        <th>Original Value</th>
+        <th>New Value</th>
+        <th>Motion Slot</th>
+        <th>Theme</th>
+      </tr>
+      <tr>
+        <td><code>FRAME_PCENGINE</code></td>
+        <td>0</td>
+        <td>0 (unchanged)</td>
+        <td>0</td>
+        <td><span class="badge badge-pce">PC Engine</span></td>
+      </tr>
+      <tr>
+        <td><code>FRAME_TG16</code></td>
+        <td>&mdash; (did not exist)</td>
+        <td>1</td>
+        <td>1</td>
+        <td><span class="badge badge-tg16">TurboGrafx-16</span></td>
+      </tr>
+      <tr class="highlight-row">
+        <td><code>FRAME_COREGRAFX</code></td>
+        <td>1</td>
+        <td>2</td>
+        <td>2</td>
+        <td><span class="badge badge-cg">CoreGrafx</span></td>
+      </tr>
+    </table>
+
+    <div class="box box-warning">
+      <strong>Backward compatibility</strong>
+      The value saved in <code>_74_frameType</code> changes meaning &mdash; old value 1 (CoreGrafx)
+      now means TG16. Since this runs on a modded system, no migration is needed. The
+      <code>systemdata_backup_flags.nut</code> default for <code>DEVID_US</code> was updated from 1 to 2.
+      The <code>mode_title_select_settinglang.nut</code> first-boot language selection uses the
+      <code>FRAME_COREGRAFX</code> constant by name, so it automatically resolves to the new value (2)
+      at Squirrel compile time.
+    </div>
+
+    <h3>Modified Files</h3>
+    <table>
+      <tr>
+        <th>File</th>
+        <th>What Changed</th>
+      </tr>
+      <tr>
+        <td><code>const.nut</code></td>
+        <td>Added <code>FRAME_TG16 = 1</code>, changed <code>FRAME_COREGRAFX</code> from 1 to 2</td>
+      </tr>
+      <tr>
+        <td><code>mode_title_select_setting.nut</code></td>
+        <td>3-slot navigation (wraps at 3), cursor positions [-178, 0, 178], direct slot mapping for
+          <code>screen_sel</code>/<code>active_slot</code>/<code>logoflash</code>,
+          <code>initialize_us</code> chara for TG16 save-init screen</td>
+      </tr>
+      <tr>
+        <td><code>utils.nut</code></td>
+        <td>Added <code>FRAME_TG16</code> case in <code>getBGMotionName()</code>,
+          <code>getGameStartBGMotionName()</code>, <code>getFrameTypeGuideText()</code>,
+          and <code>MenuModeGuide</code> color</td>
+      </tr>
+      <tr>
+        <td><code>systemdata_backup_flags.nut</code></td>
+        <td>Default for non-JP: 1 &rarr; 2; dirty check: <code>!= 1</code> &rarr; <code>!= 2</code></td>
+      </tr>
+    </table>
+    <p>
+      Files that <strong>did not</strong> require changes:
+      <code>mode_title_select.nut</code> (calls <code>getBGMotionName()</code> which handles TG16),
+      <code>wallpaperBG.nut</code> (same reason),
+      <code>mode_title_select_settinglang.nut</code> (uses constant name, not numeric value).
+    </p>
+
+    <h3>Key Design Change: Direct Slot Mapping</h3>
+    <p>
+      The original code used <code>m_indexFrame</code> as a 0/1 cursor index and remapped it to
+      motion slot 0/2 in every place that set <code>screen_sel</code>, <code>active_slot</code>, or
+      <code>logoflash</code>. The mod makes <code>m_indexFrame</code> directly equal the motion slot
+      index (0/1/2), eliminating the remapping:
+    </p>
+    <pre><code>// Original: separate cursor index (0/1) and slot index (0/2), with if/else remapping
+//   if (m_indexFrame == 0) { screen_sel = 0; logoflash = 1; }
+//   else                   { screen_sel = 2; logoflash = 3; }
+
+// MOD: m_indexFrame IS the motion slot index (0/1/2) — direct mapping
+m_motion_bg.setVariable("screen_sel", m_indexFrame);
+m_motion_bg.setVariable("active_slot", m_indexFrame);
+m_motion_bg.setVariable("logoflash", 1 + m_indexFrame);  // produces 1, 2, or 3</code></pre>
+
+    <!-- ============================================================ -->
     <h2>Settings Menu Overview</h2>
     <p>
       The settings screen is managed by <code>system/script/mode_title_select_setting.nut</code>.
@@ -96,7 +237,7 @@
         <td><code>MENU_FRAME</code></td>
         <td>4</td>
         <td>6</td>
-        <td>Frame/theme selection (PC Engine vs CoreGrafx)</td>
+        <td>Frame/theme selection (3 options) <span class="badge badge-mod">was 2</span></td>
       </tr>
       <tr>
         <td><code>MENU_CREDIT</code></td>
@@ -123,6 +264,7 @@
 SEQ_MAIN  (1)  &rarr;  Main input loop, dispatches to sub-menus via m_mode
 SEQ_CLOSE (2)  &rarr;  Save all settings to BACKUP_FLAGS, play "bg_close", exit</code></pre>
 
+    <!-- ============================================================ -->
     <h2>Motion Characters</h2>
     <p>
       Each sub-menu switches the background motion to a different <strong>chara</strong>
@@ -167,12 +309,17 @@ SEQ_CLOSE (2)  &rarr;  Save all settings to BACKUP_FLAGS, play "bg_close", exit<
       </tr>
       <tr>
         <td><code>"initialize"</code></td>
-        <td>Save init (JP lineup, PCE frame)</td>
+        <td>Save init (<span class="badge badge-pce">PCE</span> frame)</td>
+        <td><code>"bg"</code></td>
+      </tr>
+      <tr>
+        <td><code>"initialize_us"</code></td>
+        <td>Save init (<span class="badge badge-tg16">TG16</span> frame) <span class="badge badge-mod">newly used</span></td>
         <td><code>"bg"</code></td>
       </tr>
       <tr>
         <td><code>"initialize_eu"</code></td>
-        <td>Save init (JP lineup, CoreGrafx frame)</td>
+        <td>Save init (<span class="badge badge-cg">CoreGrafx</span> frame)</td>
         <td><code>"bg"</code></td>
       </tr>
       <tr>
@@ -188,20 +335,25 @@ SEQ_CLOSE (2)  &rarr;  Save all settings to BACKUP_FLAGS, play "bg_close", exit<
     </table>
 
     <div class="box box-info">
-      <strong>Note</strong>
+      <strong>Save init chara selection</strong>
       The save initialization screen picks its chara based on the current frame setting:
-      <code>"initialize"</code> for PC Engine, <code>"initialize_eu"</code> for CoreGrafx.
-      When on the US lineup, it always uses <code>"initialize_us"</code>.
+      <code>"initialize"</code> for PC Engine, <code>"initialize_us"</code> for TurboGrafx-16
+      <span class="badge badge-mod">NEW</span>, <code>"initialize_eu"</code> for CoreGrafx.
+      When on the US lineup, it always uses <code>"initialize_us"</code> regardless of frame type.
     </div>
 
+    <!-- ============================================================ -->
     <h2>Frame/Theme Selection (m_mode == 6)</h2>
 
     <h3>Constants</h3>
     <p>
       Defined in <code>system/script/const.nut</code>:
     </p>
-    <pre><code>const FRAME_PCENGINE  = 0;
-const FRAME_COREGRAFX = 1;</code></pre>
+    <pre><code>// [MOD] 3rd theme: Constants now match motion PSB slot indices directly.
+// Original: FRAME_PCENGINE = 0, FRAME_COREGRAFX = 1 (no TG16 constant).
+const FRAME_PCENGINE  = 0;   // slot 0
+const FRAME_TG16      = 1;   // slot 1 (NEW)
+const FRAME_COREGRAFX = 2;   // slot 2 (was 1)</code></pre>
 
     <h3>Variables</h3>
     <table>
@@ -212,12 +364,12 @@ const FRAME_COREGRAFX = 1;</code></pre>
       </tr>
       <tr>
         <td><code>m_indexFrame</code></td>
-        <td>0 or 1</td>
-        <td>Current cursor position (0 = PC Engine, 1 = CoreGrafx)</td>
+        <td>0, 1, or 2 <span class="badge badge-mod">was 0/1</span></td>
+        <td>Current cursor position = motion slot index</td>
       </tr>
       <tr>
         <td><code>m_indexFrameStting</code></td>
-        <td>0 or 1</td>
+        <td>0, 1, or 2 <span class="badge badge-mod">was 0/1</span></td>
         <td>Confirmed/saved frame type</td>
       </tr>
       <tr>
@@ -244,18 +396,18 @@ const FRAME_COREGRAFX = 1;</code></pre>
       </tr>
       <tr>
         <td><code>screen_sel</code></td>
-        <td>0 or 2</td>
-        <td>Selected slot (0 = PC Engine, 2 = CoreGrafx)</td>
+        <td>0, 1, or 2 <span class="badge badge-mod">was 0/2</span></td>
+        <td>Selected slot (0 = <span class="badge badge-pce">PCE</span>, 1 = <span class="badge badge-tg16">TG16</span>, 2 = <span class="badge badge-cg">CoreGrafx</span>)</td>
       </tr>
       <tr>
         <td><code>active_slot</code></td>
-        <td>0 or 2</td>
+        <td>0, 1, or 2 <span class="badge badge-mod">was 0/2</span></td>
         <td>Highlighted slot (same mapping as screen_sel)</td>
       </tr>
       <tr>
         <td><code>logoflash</code></td>
-        <td>0, 1, or 3</td>
-        <td>Logo flash on confirm: 0 = none, 1 = PC Engine, 3 = CoreGrafx</td>
+        <td>0, 1, 2, or 3 <span class="badge badge-mod">was 0/1/3</span></td>
+        <td>Logo flash on confirm: 0 = none, 1 = <span class="badge badge-pce">PCE</span>, 2 = <span class="badge badge-tg16">TG16</span>, 3 = <span class="badge badge-cg">CoreGrafx</span></td>
       </tr>
       <tr>
         <td><code>crt</code></td>
@@ -269,13 +421,13 @@ const FRAME_COREGRAFX = 1;</code></pre>
       </tr>
     </table>
 
-    <div class="box box-warning">
-      <strong>Slot index quirk &mdash; explained by cut content</strong>
-      <code>m_indexFrame</code> uses 0/1, but the motion variables <code>screen_sel</code>
-      and <code>active_slot</code> use 0/2 (not 0/1). This is because the motion assets
-      originally had <strong>3 slots</strong> (0 = PC Engine, 1 = TurboGrafx-16, 2 = CoreGrafx)
-      and slot 1 was removed from the UI without renumbering. See
-      <a href="#motion-psb-structure">Motion PSB Structure</a> below.
+    <div class="box box-info">
+      <strong>Slot index quirk &mdash; now resolved</strong>
+      In the original code, <code>m_indexFrame</code> used 0/1 but the motion variables
+      <code>screen_sel</code> and <code>active_slot</code> used 0/2 (skipping 1). This was
+      because M2 removed TG16 (slot 1) from the UI without renumbering the motion assets.
+      The mod eliminates this quirk by making <code>m_indexFrame</code> directly equal the
+      motion slot index &mdash; value 1 now correctly addresses the TG16 slot.
     </div>
 
     <h3>User Controls</h3>
@@ -286,7 +438,7 @@ const FRAME_COREGRAFX = 1;</code></pre>
       </tr>
       <tr>
         <td>LEFT / RIGHT</td>
-        <td>Toggle between PC Engine (0) and CoreGrafx (1)</td>
+        <td>Cycle through PCE &rarr; TG16 &rarr; CoreGrafx (wraps around) <span class="badge badge-mod">was PCE &harr; CoreGrafx</span></td>
       </tr>
       <tr>
         <td>UP / DOWN</td>
@@ -310,10 +462,20 @@ const FRAME_COREGRAFX = 1;</code></pre>
     <p>
       <code>getCurPositionFrame(index)</code> returns the cursor position for each slot:
     </p>
-    <pre><code>PC Engine:  x = -178, y = 96
-CoreGrafx:  x =  178, y = 96
-Exit:       x =    0, y = 220</code></pre>
+    <pre><code>// [MOD] 3rd theme: Added center position for TG16.
+// Original: local posx = [-178, 178]; local posy = [96, 96];
+local posx = [-178, 0, 178];   // PCE (left), TG16 (center), CoreGrafx (right)
+local posy = [96, 96, 96];
+// Exit button: x = 0, y = 220</code></pre>
 
+    <h3>Navigation Wrapping</h3>
+    <pre><code>// [MOD] 3rd theme: Wraps at 3 instead of 2.
+// Original: if (m_indexFrame &lt; 0) m_indexFrame = 1;
+//           if (m_indexFrame >= 2) m_indexFrame = 0;
+if (m_indexFrame &lt; 0)  m_indexFrame = 2;   // wrap to CoreGrafx
+if (m_indexFrame >= 3) m_indexFrame = 0;   // wrap to PCE</code></pre>
+
+    <!-- ============================================================ -->
     <h2>Cursor System (SettingCorsol)</h2>
     <p>
       The cursor is a separate class that uses the <code>"cursol"</code> chara in the
@@ -357,16 +519,31 @@ Exit:       x =    0, y = 220</code></pre>
         <td>4</td>
         <td><code>"frame"</code></td>
         <td><code>size = 0</code></td>
-        <td>Frame: PC Engine selected</td>
+        <td>Frame: <span class="badge badge-pce">PCE</span> selected</td>
+      </tr>
+      <tr class="highlight-row">
+        <td>5</td>
+        <td><code>"frame"</code></td>
+        <td><code>size = 1</code></td>
+        <td>Frame: <span class="badge badge-tg16">TG16</span> selected <span class="badge badge-mod">newly used</span></td>
       </tr>
       <tr class="highlight-row">
         <td>6</td>
         <td><code>"frame"</code></td>
         <td><code>size = 2</code></td>
-        <td>Frame: CoreGrafx selected</td>
+        <td>Frame: <span class="badge badge-cg">CoreGrafx</span> selected</td>
       </tr>
     </table>
 
+    <div class="box box-info">
+      <strong>Case 5 was always there</strong>
+      The <code>case 5</code> handler in <code>SettingCorsol::setScreenCorsol()</code> was already
+      present in M2's original code (it sets <code>size = 1</code> on the <code>"frame"</code> motion).
+      It was simply never called. The mod now invokes it via
+      <code>m_motion_cur.setScreenCorsol(4 + m_indexFrame)</code> when <code>m_indexFrame = 1</code>.
+    </div>
+
+    <!-- ============================================================ -->
     <h2>Saved Settings (BACKUP_FLAGS)</h2>
     <p>
       All settings are persisted via <code>g_systemdata</code> using
@@ -408,7 +585,7 @@ Exit:       x =    0, y = 220</code></pre>
         <td>Frame type</td>
         <td><code>get_74_frameType()</code></td>
         <td><code>set_74_frameType()</code></td>
-        <td><code>m_indexFrameStting</code></td>
+        <td><code>m_indexFrameStting</code> (0/1/2) <span class="badge badge-mod">was 0/1</span></td>
       </tr>
       <tr class="highlight-row">
         <td>Frame animation</td>
@@ -428,6 +605,29 @@ Exit:       x =    0, y = 220</code></pre>
       to persist to storage.
     </p>
 
+    <h3>Factory Defaults</h3>
+    <p>
+      The default values in <code>systemdata_backup_flags.nut</code> depend on the retail version:
+    </p>
+    <table>
+      <tr>
+        <th>Retail Version</th>
+        <th><code>_74_frameType</code></th>
+        <th><code>_75_hardType</code></th>
+      </tr>
+      <tr>
+        <td><code>DEVID_JP</code> (PC Engine Mini)</td>
+        <td>0 (<span class="badge badge-pce">PCE</span>)</td>
+        <td><code>LINEUP_JP</code></td>
+      </tr>
+      <tr>
+        <td><code>DEVID_US</code> (TG16 / CoreGrafx Mini)</td>
+        <td>2 (<span class="badge badge-cg">CoreGrafx</span>) <span class="badge badge-mod">was 1</span></td>
+        <td><code>LINEUP_US</code></td>
+      </tr>
+    </table>
+
+    <!-- ============================================================ -->
     <h2>Config PSB Sections</h2>
     <p>
       The config file <code>mode_title_select_setting.psb</code> contains text and guide
@@ -500,12 +700,7 @@ Exit:       x =    0, y = 220</code></pre>
       </tr>
     </table>
 
-    <div class="box box-info">
-      <strong>US variant</strong>
-      The manual sub-menu has an additional <code>MANUAL_US</code> section with a different
-      URL for the US retail version (<code>DEVID_US</code>).
-    </div>
-
+    <!-- ============================================================ -->
     <h2>Motion Variables (Background)</h2>
     <p>
       The background motion (<code>m_motion_bg</code>) uses several variables that are set
@@ -568,6 +763,7 @@ Exit:       x =    0, y = 220</code></pre>
       </tr>
     </table>
 
+    <!-- ============================================================ -->
     <h2 id="motion-psb-structure">Motion PSB Structure &amp; Design Evolution</h2>
 
     <h3>The UI Motion File</h3>
@@ -586,58 +782,67 @@ Exit:       x =    0, y = 220</code></pre>
       <tr>
         <th>Chara</th>
         <th>Role</th>
-        <th>Motions</th>
+        <th>Theme</th>
+        <th>Used By</th>
       </tr>
       <tr>
         <td><code>bg</code></td>
-        <td>PC Engine frame (JP)</td>
-        <td rowspan="3">Identical structure: <code>main</code>, <code>main_down</code>, <code>back</code>,
-          <code>main_in</code>, <code>main_out</code>, <code>hucard</code>, <code>cdcase</code>,
-          <code>boot_*</code>, <code>sort_*</code>, <code>setting_*</code>, etc.
-          (~80 motions each)</td>
-      </tr>
-      <tr>
-        <td><code>bg_eu</code></td>
-        <td>CoreGrafx frame (JP)</td>
+        <td>Background</td>
+        <td><span class="badge badge-pce">PC Engine</span></td>
+        <td>JP lineup, frameType=0</td>
       </tr>
       <tr>
         <td><code>bg_us</code></td>
-        <td>TurboGrafx-16 frame (US)</td>
+        <td>Background</td>
+        <td><span class="badge badge-tg16">TG16</span></td>
+        <td>US lineup (always) + JP lineup frameType=1 <span class="badge badge-mod">NEW</span></td>
       </tr>
       <tr>
-        <td><code>frame</code></td>
-        <td>Frame selection screen</td>
-        <td><code>bg</code>, <code>screen_0/1/2</code>, <code>logo_0/1/2</code>,
-          <code>logoflash_0/1/2</code>, <code>tile_0/1/2</code>,
-          <code>screen_slot_active_jp/eu/us</code>, <code>screen_slot_normal</code>,
-          <code>noise</code>, etc.</td>
+        <td><code>bg_eu</code></td>
+        <td>Background</td>
+        <td><span class="badge badge-cg">CoreGrafx</span></td>
+        <td>JP lineup, frameType=2</td>
       </tr>
       <tr>
-        <td><code>initialize</code></td>
-        <td>Save init (PCE frame)</td>
-        <td rowspan="3">Save data initialization screens</td>
-      </tr>
-      <tr>
-        <td><code>initialize_eu</code></td>
-        <td>Save init (CoreGrafx)</td>
-      </tr>
-      <tr>
-        <td><code>initialize_us</code></td>
-        <td>Save init (TG16)</td>
+        <td colspan="4" style="font-size:12px; color:var(--text-muted)">
+          All three have identical motion structure (~80 motions: <code>main</code>, <code>main_down</code>,
+          <code>back</code>, <code>hucard</code>, <code>cdcase</code>, <code>boot_*</code>,
+          <code>sort_*</code>, <code>setting_*</code>, etc.) &mdash; only the sprite icon references differ.
+        </td>
       </tr>
     </table>
 
-    <p>
-      The three background charas (<code>bg</code>, <code>bg_eu</code>, <code>bg_us</code>)
-      have <strong>strictly identical structure</strong> &mdash; same motions, same number of
-      layers and frames. Only the <strong>icon references differ</strong>, pointing to
-      different sprites in the texture sheet.
-    </p>
+    <h3>Other Theme-Variant Charas</h3>
+    <table>
+      <tr>
+        <th>Purpose</th>
+        <th><span class="badge badge-pce">PCE</span></th>
+        <th><span class="badge badge-tg16">TG16</span></th>
+        <th><span class="badge badge-cg">CoreGrafx</span></th>
+      </tr>
+      <tr>
+        <td>Background</td>
+        <td><code>bg</code></td>
+        <td><code>bg_us</code></td>
+        <td><code>bg_eu</code></td>
+      </tr>
+      <tr>
+        <td>Pad icons</td>
+        <td><code>padicon</code></td>
+        <td><code>padicon_us</code></td>
+        <td><code>padicon_eu</code></td>
+      </tr>
+      <tr>
+        <td>Save init</td>
+        <td><code>initialize</code></td>
+        <td><code>initialize_us</code></td>
+        <td><code>initialize_eu</code></td>
+      </tr>
+    </table>
 
     <h3>Three Slots in the Frame Selection Screen</h3>
     <p>
-      The <code>frame</code> chara contains assets for <strong>three</strong> theme slots,
-      not two:
+      The <code>frame</code> chara contains assets for <strong>three</strong> theme slots:
     </p>
     <table>
       <tr>
@@ -654,7 +859,7 @@ Exit:       x =    0, y = 220</code></pre>
         <td><code>logo_0</code></td>
         <td>0187 (81&times;44)</td>
         <td>0188 (160&times;85)</td>
-        <td>PC Engine</td>
+        <td><span class="badge badge-pce">PC Engine</span></td>
       </tr>
       <tr>
         <td><strong>1</strong></td>
@@ -662,7 +867,7 @@ Exit:       x =    0, y = 220</code></pre>
         <td><code>logo_1</code></td>
         <td>0190 (88&times;124)</td>
         <td>0190 (88&times;124)</td>
-        <td>TurboGrafx-16</td>
+        <td><span class="badge badge-tg16">TG16</span> <span class="badge badge-mod">now exposed</span></td>
       </tr>
       <tr>
         <td><strong>2</strong></td>
@@ -670,56 +875,48 @@ Exit:       x =    0, y = 220</code></pre>
         <td><code>logo_2</code></td>
         <td>0185 (76&times;46)</td>
         <td>0186 (150&times;92)</td>
-        <td>CoreGrafx</td>
+        <td><span class="badge badge-cg">CoreGrafx</span></td>
       </tr>
     </table>
     <p>
       Each slot also has: <code>tile_N</code> / <code>tile_Nr</code> (selection tiles),
       <code>logoflash_N</code> (confirmation flash animation), and
       <code>screen_slot_active_*_ani</code> (idle animation).
-      The Squirrel code only exposes slots 0 and 2, leaving slot 1 unused.
     </p>
 
     <h3>Design Evolution</h3>
     <div class="box box-info">
-      <strong>From 3 themes to 2 lineups</strong>
+      <strong>From 3 themes to 2 lineups (and back again)</strong>
       The motion assets reveal that M2 originally planned a design where a single lineup
       offered <strong>3 selectable themes</strong> (PC Engine, TurboGrafx-16, CoreGrafx).
       This was later changed to the final design with <strong>2 lineups</strong>, where the
-      TurboGrafx-16 theme became permanently tied to the US lineup via
-      <code>getBGMotionName()</code> returning <code>"bg_us"</code>, and the JP lineup
-      retained a choice between PC Engine and CoreGrafx.
+      TurboGrafx-16 theme became permanently tied to the US lineup and the JP lineup
+      retained a choice between PC Engine and CoreGrafx. The 3rd theme modification
+      re-exposes the hidden TG16 slot, restoring M2's original 3-theme selection.
     </div>
 
     <div class="diagram">
-<span class="hl-blue">Original design (assets still present)</span>
+<span class="hl-blue">Original design (assets still present in PSB)</span>
   1 lineup, 3 selectable themes:
     slot 0 = PC Engine      (<span class="hl-green">screen_sel = 0</span>)
     slot 1 = TurboGrafx-16  (<span class="hl-green">screen_sel = 1</span>)
     slot 2 = CoreGrafx      (<span class="hl-green">screen_sel = 2</span>)
 
-<span class="hl-blue">Final design (shipping code)</span>
+<span class="hl-blue">Shipping code (M2's final design)</span>
   2 lineups, theme per lineup:
-    JP lineup → choice: PC Engine (<span class="hl-green">screen_sel = 0</span>)
+    JP lineup &rarr; choice: PC Engine (<span class="hl-green">screen_sel = 0</span>)
                      or CoreGrafx (<span class="hl-green">screen_sel = 2</span>)
-    US lineup → fixed:  TurboGrafx-16 (via <span class="highlight">"bg_us"</span>, no selection)
+    US lineup &rarr; fixed:  TurboGrafx-16 (via <span class="highlight">"bg_us"</span>, no selection)
+  Slot 1 skipped in UI &rarr; explains the 0/2 quirk
 
-  Slot 1 skipped in UI → explains the 0/2 quirk
+<span class="highlight">MOD: 3rd theme restored</span>
+  JP lineup &rarr; choice: PC Engine (<span class="hl-green">screen_sel = 0</span>)
+                     or TG16      (<span class="hl-green">screen_sel = 1</span>)  &larr; <span class="highlight">NEW</span>
+                     or CoreGrafx (<span class="hl-green">screen_sel = 2</span>)
+  US lineup &rarr; fixed:  TurboGrafx-16 (unchanged)
     </div>
 
-    <p>
-      This evolution also explains several other quirks:
-    </p>
-    <ul>
-      <li>The <code>screen_sel</code> / <code>active_slot</code> values skip 1 (use 0 and 2)</li>
-      <li>The <code>logoflash</code> formula <code>1 + slot_value</code> produces 1 and 3
-        (not 1 and 2)</li>
-      <li>The US lineup completely ignores <code>_74_frameType</code> &mdash; its theme is
-        hardcoded in <code>getBGMotionName()</code></li>
-      <li>There are 3 <code>padicon</code> charas: <code>padicon</code>, <code>padicon_eu</code>,
-        <code>padicon_us</code> &mdash; matching the original 3-theme plan</li>
-    </ul>
-
+    <!-- ============================================================ -->
     <h2>Theme Propagation Across the UI</h2>
     <p class="page-desc">
       The frame type choice doesn't just affect the settings screen &mdash; it propagates to
@@ -740,7 +937,7 @@ Exit:       x =    0, y = 220</code></pre>
 
     <h3>Background Motion Character</h3>
     <p>
-      <code>getBGMotionName()</code> (utils.nut:2416) is the primary mechanism. It returns the
+      <code>getBGMotionName()</code> (utils.nut) is the primary mechanism. It returns the
       motion <strong>chara</strong> name for all background layers based on the current lineup
       and frame type:
     </p>
@@ -757,12 +954,17 @@ Exit:       x =    0, y = 220</code></pre>
       </tr>
       <tr>
         <td>JP</td>
-        <td>PC Engine (0)</td>
+        <td><span class="badge badge-pce">PC Engine (0)</span></td>
         <td><code>"bg"</code></td>
       </tr>
       <tr>
         <td>JP</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-tg16">TG16 (1)</span> <span class="badge badge-mod">NEW</span></td>
+        <td><code>"bg_us"</code></td>
+      </tr>
+      <tr>
+        <td>JP</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span></td>
         <td><code>"bg_eu"</code></td>
       </tr>
     </table>
@@ -773,16 +975,16 @@ Exit:       x =    0, y = 220</code></pre>
     <ul>
       <li><code>m_motion_bg</code> &mdash; upper background, motion <code>"main"</code></li>
       <li><code>m_motion_bg_down</code> &mdash; lower background, motion <code>"main_down"</code></li>
-      <li><code>m_motion_bg_back[]</code> &mdash; scrolling background array (×<code>BGBACK_NUM</code>), motion <code>"back"</code></li>
+      <li><code>m_motion_bg_back[]</code> &mdash; scrolling background array (&times;<code>BGBACK_NUM</code>), motion <code>"back"</code></li>
     </ul>
     <p>
-      There is also <code>getGameStartBGMotionName()</code> (utils.nut:2439) which returns
-      the same values and is used when launching a game.
+      There is also <code>getGameStartBGMotionName()</code> which returns the same values
+      and is used when launching a game.
     </p>
 
     <div class="box box-info">
       <strong>Hot-reload after settings change</strong>
-      When the user exits settings, <code>mode_title_select.nut</code> (line 1271) compares
+      When the user exits settings, <code>mode_title_select.nut</code> compares
       <code>frameTypeOld</code> with the current value. If changed, it checks
       <code>s_last_linenp == LINEUP_JP</code> before reloading &mdash; on the US lineup
       the chara is always <code>"bg_us"</code> so no reload is ever needed.
@@ -792,22 +994,14 @@ Exit:       x =    0, y = 220</code></pre>
     <p>
       The <code>WallpaperBG</code> class (<code>system/script/wallpaperBG.nut</code>) manages
       background visuals during transitions (e.g. returning from game to menu). It also uses
-      <code>getBGMotionName()</code> and <code>getFrameOffset()</code>:
+      <code>getBGMotionName()</code> &mdash; no modification needed since it inherits TG16
+      support from that function.
     </p>
-    <pre><code>m_motion.chara = getBGMotionName();        // upper BG
-m_motion_back.chara = getBGMotionName();   // lower BG
-m_motion.top = -1 * getFrameOffset();
-m_motion_back.top = getFrameOffset();
-
-for (i = 0; i &lt; BGBACK_NUM; i++) {
-    m_motion_bg_back[i].chara = getBGMotionName();  // scrolling BG
-}</code></pre>
 
     <h3>Frame Offset Animation (Startup Convergence)</h3>
     <p>
       On program launch, the different parts of the UI converge from outside the screen
-      toward the center to form the final layout, while game thumbnails and the selection
-      menu fade in. Three functions in <code>utils.nut</code> manage this:
+      toward the center. Three functions in <code>utils.nut</code> manage this:
     </p>
     <table>
       <tr>
@@ -829,112 +1023,68 @@ for (i = 0; i &lt; BGBACK_NUM; i++) {
     </table>
     <p>
       At frame 0 the offset is <code>900/3 = 300</code> pixels, pushing UI elements far
-      off-screen. It decays quadratically over 30 frames until it reaches 0, at which point
-      all elements are in their final positions. The offset then stays at 0 for the rest
-      of program execution.
+      off-screen. It decays quadratically over 30 frames until it reaches 0.
+      The offset is applied to every major element's position, creating the convergence effect.
+      <strong>No modification needed</strong> &mdash; the convergence animation is theme-agnostic.
     </p>
-    <p>
-      The offset is applied to every major element's position, creating the convergence effect:
-    </p>
-    <table>
-      <tr>
-        <th>Element</th>
-        <th>Offset Applied</th>
-        <th>Effect</th>
-      </tr>
-      <tr>
-        <td>Upper BG (<code>m_motion_bg.top</code>)</td>
-        <td><code>-1 &times; getFrameOffset()</code></td>
-        <td>Slides in from above</td>
-      </tr>
-      <tr>
-        <td>Lower BG (<code>m_motion_bg_down.top</code>)</td>
-        <td><code>+1 &times; getFrameOffset()</code></td>
-        <td>Slides in from below</td>
-      </tr>
-      <tr>
-        <td>Game thumbnails</td>
-        <td><code>THUMBNAIL_Y - getFrameOffset()</code></td>
-        <td>Drop in from above</td>
-      </tr>
-      <tr>
-        <td>Thumbnail X positions</td>
-        <td><code>-2&times;</code>, <code>-1&times;</code>, <code>+1&times;</code>, <code>+2&times;</code> multipliers</td>
-        <td>Fan in from left/right</td>
-      </tr>
-      <tr>
-        <td>Cursor, title text, guide icons</td>
-        <td><code>+/- getFrameOffset()</code></td>
-        <td>Converge to final position</td>
-      </tr>
-      <tr>
-        <td>Settings/Sort labels</td>
-        <td><code>y + getFrameOffset()</code></td>
-        <td>Slide in from below</td>
-      </tr>
-    </table>
-
-    <div class="box box-info">
-      <strong>Re-trigger points</strong>
-      <code>setFrameinOut()</code> is called on first load, but also after exiting settings
-      (if save data was initialized), after a frame type change, after a lineup switch, and
-      when returning from a game &mdash; replaying the convergence animation each time.
-    </div>
 
     <h3>Guide Button Icons</h3>
     <p>
-      <code>getFrameTypeGuideText()</code> (utils.nut:2485) remaps button icon characters
-      depending on the lineup and theme. The US lineup has its own fixed remapping that
-      ignores the frame type. On the JP lineup, the frame type selects between two
-      icon sets. The custom font uses Cyrillic characters as symbol codes for
-      controller button glyphs:
+      <code>getFrameTypeGuideText()</code> (utils.nut) remaps button icon characters
+      depending on the lineup and theme. The custom font uses Cyrillic/Greek characters as
+      symbol codes for controller button glyphs:
     </p>
     <table>
       <tr>
         <th>Default Icon</th>
-        <th>PC Engine (JP)</th>
-        <th>CoreGrafx (JP)</th>
+        <th><span class="badge badge-pce">PCE (JP)</span></th>
+        <th><span class="badge badge-tg16">TG16 (JP)</span></th>
+        <th><span class="badge badge-cg">CoreGrafx (JP)</span></th>
         <th>US Lineup</th>
       </tr>
       <tr>
         <td><code>&#x0399;</code> (Iota)</td>
         <td><code>&#x0399;</code> (unchanged)</td>
+        <td><code>&#x0418;</code> (I) <span class="badge badge-mod">NEW</span></td>
         <td><code>&#x0416;</code> (Zhe)</td>
         <td><code>&#x0418;</code> (I)</td>
       </tr>
       <tr>
         <td><code>&#x039A;</code> (Kappa)</td>
         <td><code>&#x039A;</code> (unchanged)</td>
+        <td><code>&#x041B;</code> (El) <span class="badge badge-mod">NEW</span></td>
         <td><code>&#x0411;</code> (Be)</td>
         <td><code>&#x041B;</code> (El)</td>
       </tr>
       <tr>
         <td><code>&#x039C;</code> (Mu)</td>
         <td><code>&#x039C;</code> (unchanged)</td>
+        <td><code>&#x0426;</code> (Tse) <span class="badge badge-mod">NEW</span></td>
         <td><code>&#x0413;</code> (Ge)</td>
         <td><code>&#x0426;</code> (Tse)</td>
       </tr>
       <tr>
         <td><code>&#x039B;</code> (Lambda)</td>
         <td><code>&#x039B;</code> (unchanged)</td>
+        <td><code>&#x041F;</code> (Pe) <span class="badge badge-mod">NEW</span></td>
         <td><code>&#x0431;</code> (be)</td>
         <td><code>&#x041F;</code> (Pe)</td>
       </tr>
     </table>
     <p>
-      Each character maps to a specific button glyph (I, II, SELECT, RUN etc.) in M2's
-      custom icon font. The different Cyrillic codepoints map to visually distinct button
-      styles matching each console's aesthetic.
+      TG16 uses the same icon remapping as the US lineup &mdash; the TG16 controller has the
+      same button layout as the TurboGrafx-16 pad.
     </p>
 
     <h3>Guide Text Color</h3>
     <p>
-      The <code>MenuModeGuide</code> class (utils.nut:2545) can optionally tint guide text
+      The <code>MenuModeGuide</code> class (utils.nut) can optionally tint guide text
       based on the frame type. When <code>colorChange = true</code>:
     </p>
     <ul>
-      <li><strong>JP + PC Engine</strong> &rarr; blue text prefix: <code>#{color,00000FF}</code></li>
-      <li><strong>JP + CoreGrafx</strong> &rarr; no color change (default text color)</li>
+      <li><strong>JP + <span class="badge badge-pce">PC Engine</span></strong> &rarr; blue text prefix: <code>#{color,00000FF}</code></li>
+      <li><strong>JP + <span class="badge badge-tg16">TG16</span></strong> &rarr; no color change (default text color) <span class="badge badge-mod">NEW</span></li>
+      <li><strong>JP + <span class="badge badge-cg">CoreGrafx</span></strong> &rarr; no color change (default text color)</li>
       <li><strong>US lineup</strong> &rarr; no color change (frame type ignored)</li>
     </ul>
 
@@ -943,7 +1093,8 @@ for (i = 0; i &lt; BGBACK_NUM; i++) {
       On first boot, the language selection screen
       (<code>mode_title_select_settinglang.nut</code>) auto-sets the frame type based on
       the chosen language. This only applies to the <strong>US/EU retail version</strong>
-      (<code>DEVID_US</code>):
+      (<code>DEVID_US</code>). The code uses the <code>FRAME_COREGRAFX</code> constant by name,
+      so it automatically resolves to the new value (2) at compile time &mdash; no code change needed.
     </p>
     <table>
       <tr>
@@ -953,39 +1104,35 @@ for (i = 0; i &lt; BGBACK_NUM; i++) {
       </tr>
       <tr>
         <td>Japanese</td>
-        <td>PC Engine (0)</td>
+        <td><span class="badge badge-pce">PC Engine (0)</span></td>
         <td>(unchanged)</td>
       </tr>
       <tr>
         <td>English</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span> <span class="badge badge-mod">was 1</span></td>
         <td>(unchanged)</td>
       </tr>
       <tr>
         <td>French</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span></td>
         <td>JP</td>
       </tr>
       <tr>
         <td>Italian</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span></td>
         <td>JP</td>
       </tr>
       <tr>
         <td>German</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span></td>
         <td>JP</td>
       </tr>
       <tr>
         <td>Spanish</td>
-        <td>CoreGrafx (1)</td>
+        <td><span class="badge badge-cg">CoreGrafx (2)</span></td>
         <td>JP</td>
       </tr>
     </table>
-    <p>
-      On the <strong>JP retail version</strong> (<code>DEVID_JP</code>), the language choice
-      does not change the frame type &mdash; it stays PC Engine.
-    </p>
 
     <div class="box box-warning">
       <strong>European languages set JP lineup</strong>
@@ -995,34 +1142,12 @@ for (i = 0; i &lt; BGBACK_NUM; i++) {
       languages were targeted at the European market.
     </div>
 
-    <h3>Factory Defaults</h3>
-    <p>
-      The default values in <code>systemdata_backup_flags.nut</code> depend on the retail version:
-    </p>
-    <table>
-      <tr>
-        <th>Retail Version</th>
-        <th><code>_74_frameType</code></th>
-        <th><code>_75_hardType</code></th>
-      </tr>
-      <tr>
-        <td><code>DEVID_JP</code> (PC Engine Mini)</td>
-        <td>0 (PC Engine)</td>
-        <td><code>LINEUP_JP</code></td>
-      </tr>
-      <tr>
-        <td><code>DEVID_US</code> (TurboGrafx-16 / CoreGrafx Mini)</td>
-        <td>1 (CoreGrafx)</td>
-        <td><code>LINEUP_US</code></td>
-      </tr>
-    </table>
-
     <h3>Complete Propagation Flow</h3>
     <div class="diagram">
 <span class="hl-blue">User selects frame type in settings</span>
   |
   v
-<span class="highlight">set_74_frameType()</span> &rarr; persisted to BACKUP_FLAGS
+<span class="highlight">set_74_frameType()</span> &rarr; persisted to BACKUP_FLAGS (value 0, 1, or 2)
   |
   v
 <span class="hl-blue">Exit settings menu</span>
@@ -1031,14 +1156,14 @@ for (i = 0; i &lt; BGBACK_NUM; i++) {
   |     If changed <span class="hl-green">AND</span> lineup == JP:
   |       |
   |       +&rarr; <span class="highlight">setFrameinOut()</span>      &rarr; triggers 30-frame bounce animation
-  |       +&rarr; <span class="highlight">getBGMotionName()</span>  &rarr; returns "bg" or "bg_eu"
+  |       +&rarr; <span class="highlight">getBGMotionName()</span>  &rarr; returns <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_us"</span> / <span class="hl-purple">"bg_eu"</span>
   |       +&rarr; Reload all BG layers with new chara:
-  |             m_motion_bg.chara      = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
-  |             m_motion_bg_down.chara = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
-  |             m_motion_bg_back[].chara = <span class="hl-purple">"bg"</span> / <span class="hl-purple">"bg_eu"</span>
+  |             m_motion_bg.chara      = getBGMotionName()
+  |             m_motion_bg_down.chara = getBGMotionName()
+  |             m_motion_bg_back[].chara = getBGMotionName()
   |
   +&rarr; <span class="highlight">getFrameTypeGuideText()</span>  &rarr; remap button icon glyphs
-  +&rarr; <span class="highlight">MenuModeGuide</span> color     &rarr; blue tint for PCE, default for CoreGrafx
+  +&rarr; <span class="highlight">MenuModeGuide</span> color     &rarr; blue for <span class="hl-green">PCE</span>, default for <span class="hl-green">TG16</span>/<span class="hl-green">CoreGrafx</span>
   +&rarr; <span class="highlight">WallpaperBG</span>              &rarr; uses same getBGMotionName() on next open
     </div>
 

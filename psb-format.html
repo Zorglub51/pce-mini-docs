@@ -195,6 +195,18 @@ t = elapsed / (nextKeyTime - previousKeyTime);</code></pre>
       A key named <code>mask</code> inside <code>layerIndexMap</code> can simply be a layer name
       mapped to an index. Neither is a <code>content.mask</code> value.</p>
 
+    <h3 id="rectangular-clip">Type 7: rectangular clipping</h3>
+    <p>A layer of type 7 defines a spatial clip, separately from the presence masks above.
+      Its native bounds are a centred <strong>32&times;32 square</strong>:
+      <code>[-16,+16]</code> on each axis. Subtract <code>ox/oy</code>, then apply the layer
+      transform, including mirroring. For an axis-aligned clip, width and height are
+      <code>32*abs(composedZoom)</code>; do not multiply by <code>zx/zy</code> a second time.</p>
+    <p>In <code>initialize/default_gage</code> of <code>titleselect_ui.psb</code>, the Restore
+      Settings gauge uses two clips with <code>ox=16</code>, one mirrored, to reveal the fill
+      outward from the centre. Their horizontal zoom runs from 0 to approximately 11.491854.
+      Native bounds calculation: <code>0x14112a&ndash;0x14124a</code>. The Mac port's axis-aligned
+      implementation is checked at four progress values, both mirror states and two parent scales.</p>
+
     <h3 id="mask-port">m2engage-mac implementation</h3>
     <p>The 2D port applies these presence gates to its supported animation fields, resets
       defaults per content, restricts curves and <code>ti</code> to type 3, and applies
@@ -245,6 +257,13 @@ Screen:   D + (1-D)*A*C</code></pre>
     <p>Targeted synthetic ARM execution checked 42 decoding cases, nine GLES branches and six original
       shader sources, plus default/mask and explicit-color cases. These record native control flow
       and GL arguments; they are not physical-console pixel measurements.</p>
+    <p>A subsequent Mac GPU comparison uses the original shader 82 (<code>0x216498</code>)
+      with the actual orange cursor texel (241,145,73). For bm=20, white tint, full opacity
+      and the same orange background, the original shader and the port both produce
+      (255,255,177). This is an isolated shader comparison on the Mac, not a console capture.
+      The reported difference between a white console glow and the Mac's yellow glow is
+      still unresolved at the complete-scene level; these equations alone do not establish
+      visual parity with the console.</p>
     <p>A separate scan of 24 distinct stock motion PSBs found explicit bm values
       0 (304 contents), 1 (34), 17 (112), 19 (1) and 20 (300). The bm=19 example is
       <code>system/motion/wall_bg06.psb.m</code>, object bg, motion front, layer 1,

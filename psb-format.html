@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Format PSB - PCE Mini Internals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">
+      <h1>PCE Mini Internals</h1>
+      <div class="subtitle">m2engage reverse engineering</div>
+    </div>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="index.html">Introduction</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+    </ul>
+    <div class="section-label">File Formats</div>
+    <ul>
+      <li><a href="mzs-format.html">MZS / PSB Format</a></li>
+      <li><a href="psb-format.html" class="active">Format PSB</a></li>
+      <li><a href="title-mode-top.html">title_mode_top</a></li>
+      <li><a href="title-prof.html">title_prof</a></li>
+      <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
+    </ul>
+    <div class="section-label">Tools &amp; Building</div>
+    <ul>
+      <li><a href="tools.html">mzstool &amp; Toolchain</a></li>
+      <li><a href="building.html">Building Game Packs</a></li>
+    </ul>
+    <div class="section-label">Reference</div>
+    <ul>
+      <li><a href="squirrel-vm.html">Squirrel VM &amp; Filesystem</a></li>
+      <li><a href="save-system.html">Save System</a></li>
+      <li><a href="framecount.html">FrameCount</a></li>
+      <li><a href="display-classes.html">Display Classes</a></li>
+      <li><a href="theme.html">Theme Selection</a></li>
+      <li><a href="pitfalls.html">Pitfalls &amp; Gotchas</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Format PSB</h1>
+    <p class="page-desc">Animation blend modes, RGB gain, defaults and native evidence from the PC Engine Mini engine.</p>
+    <p>PSB stores structured resources such as configuration, texture atlases and animation timelines.
+      See <a href="mzs-format.html#psb-binary-format">MZS / PSB Format</a> for the binary container and
+      encryption wrapper, and <a href="cover-motion.html">Cover Motion PSBs</a> for the animation tree.</p>
+
+    <h2 id="blend-modes">Animation content: bm</h2>
+    <p><code>object.&lt;name&gt;.motion.&lt;name&gt;.layer[].frameList[].content.bm</code>
+      combines a composition selector with an RGB gain. It controls how the sprite is combined
+      with pixels already drawn. The native default is <strong>16 (0x10)</strong>.</p>
+    <table>
+      <tr><th>bm</th><th>Hex</th><th>Composition</th><th>RGB gain after tinting</th></tr>
+      <tr><td>0</td><td>0x00</td><td>Normal alpha</td><td>&times;1</td></tr>
+      <tr><td>1</td><td>0x01</td><td>Additive</td><td>&times;1</td></tr>
+      <tr><td>16 (default)</td><td>0x10</td><td>Normal alpha</td><td>&times;2</td></tr>
+      <tr><td>17</td><td>0x11</td><td>Additive</td><td>&times;2</td></tr>
+      <tr><td>19</td><td>0x13</td><td>Multiply</td><td>&times;2</td></tr>
+      <tr><td>20</td><td>0x14</td><td>Screen</td><td>&times;2</td></tr>
+    </table>
+    <p>The ordinary composition selector is <code>bm &amp; 0xff0f</code>: the color quartet
+      in bits 4&ndash;7 is removed. For the values above, this equals <code>bm &amp; 0x0f</code>.
+      Bit <code>0x10</code> doubles RGB <em>after</em> multiplication by the vertex tint.
+      Alpha is unchanged by that gain. The &times;1 Multiply/Screen variants are 3/4.
+      Higher filter selectors also exist; this table is not an exhaustive enum of every M2 effect.</p>
+
+    <h2 id="colors">Colors and the &times;2 gain</h2>
+    <p>The native &times;2 shader performs these operations in this order:</p>
+    <pre><code>vec4 tmp = texture2D(u_texUnitId, v_texCoord);
+tmp *= v_color;
+tmp.rgb += tmp.rgb;</code></pre>
+    <p>Without an explicit <code>color</code>, the default bm=16 starts with
+      <code>0x808080ff</code>: midpoint RGB compensates the &times;2 gain. Without the color
+      quartet (for example bm=0 or 1), the implicit tint is white <code>0xffffffff</code>.
+      This is an 8-bit convention: <code>2 &times; 128/255 = 256/255</code> before subsequent
+      rounding and saturation.</p>
+    <p>An explicit color is preserved, whether it is one RRGGBBAA integer or four corner colors
+      [TL, TR, BL, BR]. Gray is a real tint, including its alpha. A white tint under bm=16/17
+      can brighten the source up to &times;2; it must not be silently replaced with neutral gray.
+      The gain changes neither <code>opa</code> nor the alpha channel.</p>
+
+    <h2 id="mask-defaults">Presence mask and per-frame defaults</h2>
+    <p>The original reader reads <code>bm</code> only when <code>content.mask &amp; 0x20000</code>
+      is set. Merely adding a JSON key does not activate it. The color presence bit is
+      <code>0x200</code>. For example, this selects additive &times;2 with a nominally neutral tint:</p>
+    <pre><code>"content": {
+  "mask": 131584,
+  "bm": 17,
+  "color": 2155905279
+}</code></pre>
+    <p>Here <code>131584 = 0x20200</code> and <code>2155905279 = 0x808080ff</code>.
+      In a complete sprite content object, preserve the other properties and their mask bits.
+      Without the bm bit, the reader uses 16. Without an explicit color it resolves the neutral
+      tint for that frame; a previous frame's special blend or explicit tint is not its default.</p>
+
+    <h2 id="equations">Composition equations and alpha</h2>
+    <p>Let <code>C = texture.rgb &times; vertexColor.rgb &times; gain</code>, <code>A</code>
+      be the final source alpha after texture, tint and opacity, and <code>D</code> be destination RGB.
+      Component by component, ignoring rounding and saturation:</p>
+    <pre><code>Normal:   A*C + (1-A)*D
+Additive: D + A*C
+Multiply: D*(1-A + A*C)
+Screen:   D + (1-D)*A*C</code></pre>
+    <table>
+      <tr><th>Composition</th><th>Fragment RGB</th><th>GL srcRGB / dstRGB</th><th>GL srcAlpha / dstAlpha</th></tr>
+      <tr><td>Normal</td><td>Straight</td><td>SRC_ALPHA / ONE_MINUS_SRC_ALPHA</td><td>ONE / ONE_MINUS_SRC_ALPHA</td></tr>
+      <tr><td>Additive</td><td>Straight</td><td>SRC_ALPHA / ONE</td><td>ZERO / ONE</td></tr>
+      <tr><td>Multiply</td><td>Premultiplied by A</td><td>DST_COLOR / ONE_MINUS_SRC_ALPHA</td><td>ZERO / ONE</td></tr>
+      <tr><td>Screen</td><td>Premultiplied by A</td><td>ONE_MINUS_DST_COLOR / ONE</td><td>ZERO / ONE</td></tr>
+    </table>
+    <p>All four use <code>GL_FUNC_ADD</code>. Additive, Multiply and Screen preserve destination alpha.
+      Premultiplication is selected by the composition, independently of bit <code>0x10</code>.
+      This matters for translucent pixels whose doubled RGB exceeds one: the normal/additive
+      source is clamped as straight RGB before the blend factors apply, whereas the
+      Multiply/Screen fragment is premultiplied before that clamp.</p>
+    <p><code>bm=0</code> is normal transparency. An opaque draw can let the engine disable blending
+      as an optimization, but bm=0 is not a general framebuffer Copy operation.</p>
+
+    <h2 id="evidence">Native evidence and scope</h2>
+    <p>These meanings come from the original ARM executable, rather than from names assigned by a viewer.
+      Examined SHA-256: <code>b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792</code>.</p>
+    <ul>
+      <li><code>0x14f4d4&ndash;0x14f4e8</code>: default bm=16;
+        <code>0x14f51c</code> and <code>0x14fea4</code>: mask gate and integer read.</li>
+      <li><code>0x1b95e4</code>: blend/shader selection;
+        <code>0x2162a4</code>: shader with <code>tmp.rgb += tmp.rgb</code>.</li>
+      <li><code>0x1b761e</code>: additive; <code>0x1b72e2</code>: Multiply;
+        <code>0x1b76d4</code>: Screen.</li>
+    </ul>
+    <p>Targeted synthetic ARM execution checked 42 decoding cases, nine GLES branches and six original
+      shader sources, plus default/mask and explicit-color cases. These record native control flow
+      and GL arguments; they are not physical-console pixel measurements.</p>
+    <p>A separate scan of 24 distinct stock motion PSBs found explicit bm values
+      0 (304 contents), 1 (34), 17 (112), 19 (1) and 20 (300). The bm=19 example is
+      <code>system/motion/wall_bg06.psb.m</code>, object bg, motion front, layer 1,
+      labeled <code>フィルター</code>. Missing fields use the native defaults.</p>
+    <p>Download the <a href="evidence/psb-bm/native-probes.json">native probe results</a>,
+      <a href="evidence/psb-bm/corpus.json">stock corpus examples</a> and
+      <a href="evidence/psb-bm/analysis.txt">detailed investigation</a>.
+      Earlier local viewer documentation labeling 17 as Multiply was incorrect.</p>
+  </main>
+</body>
+</html>

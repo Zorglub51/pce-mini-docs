@@ -1,0 +1,175 @@
+Paramètre bm des PSB d'animation — moteur PC Engine Mini
+Analyse du 15 octobre 2026
+
+Conclusion
+
+bm combine le mode de composition avec le fond et une option de gain RGB.
+Dans les animations d'origine, 17 est ADDITIF, 19 est MULTIPLY et 20 est SCREEN.
+Le bit 0x10 double le RGB du sprite après multiplication par sa couleur de sommet.
+Il ne change pas l'alpha et ne signifie pas « alpha prémultiplié ».
+La valeur par défaut du lecteur natif est 16 (0x10), et non 0 ou 1.
+
+Valeurs utiles
+
+  bm    hex     composition                  gain RGB après teinte
+   0    0x00    alpha normale                 x1
+   1    0x01    addition                      x1
+  16    0x10    alpha normale (défaut)        x2
+  17    0x11    addition                      x2
+  19    0x13    multiplication                x2
+  20    0x14    écran / Screen                x2
+
+Le sélecteur natif de composition est bm & 0xff0f : les bits 4..7 sont retirés.
+Pour les valeurs ci-dessus, cela équivaut à bm & 0x0f. Le moteur possède aussi
+des branches de filtre pour des valeurs plus élevées (bm & 0x0f00 == 0x0100) ;
+elles ne sont pas utilisées dans le corpus examiné. Il serait donc excessif
+de réduire tout l'entier bm à un enum de seulement 16 valeurs.
+
+Les variantes de shader ordinaires testent spécifiquement bm & 0x10 pour le x2.
+Le traitement de couleur par défaut teste plus largement bm & 0xf0. Les valeurs
+non observées comportant d'autres bits de ce quartet ne sont pas présentées
+comme des modes documentés de l'éditeur M2.
+
+Lecture du PSB et couleurs par défaut
+
+  0x14f4d4..0x14f4e8 : initialisation de bm à 16.
+  0x14f4c6..0x14f4de : couleur des quatre sommets initialisée à 0x808080ff.
+  0x14f51c..0x14f51e : test du bit 17 de content.mask (0x20000).
+  0x14fea4..0x14febc : lecture de la clé "bm", conversion entière,
+                      stockage à frame + 0x20.
+
+La présence de la clé dans le JSON ne suffit pas : son bit 0x20000 dans mask
+doit être présent pour que cette lecture ait lieu. Le probe vérifie qu'une
+valeur fournie de 17 reste ignorée sans ce bit et laisse le défaut 16.
+
+Quand une couleur est fournie (mask & 0x200), le lecteur conserve sa valeur :
+un entier est recopié aux quatre sommets à 0x150096..0x1500a6 ; un tableau
+fournit quatre couleurs à 0x14fe0c..0x14fe80. Ces branches rejoignent 0x14f544.
+Les probes vérifient explicitement qu'une couleur entière est conservée pour
+bm=0 ET pour bm=16. bm=0 ne désactive donc pas les teintes explicites.
+
+Quand aucune couleur n'est fournie, 0x14f52e..0x14f53e remplace le gris initial
+par 0xffffffff si bm & 0xf0 == 0 ; sinon le gris initial est conservé.
+Le blanc est donc la teinte neutre du chemin x1, et le gris 128,128,128 est la
+convention neutre du chemin x2. Au niveau de ces shaders, 2*(128/255)=256/255 :
+la neutralité est une convention 8 bits, avec les arrondis du pipeline.
+Un color blanc explicite avec bm=16 ou 17 peut éclaircir le sprite jusqu'à x2.
+Le gain porte uniquement sur RGB ; opa et les alphas conservent leur rôle.
+
+Shaders originaux, reconstitués depuis leur initialiseur
+
+L'initialiseur à 0xdeb0..0x14554 remplit la table de sources à 0x3e6008.
+Le probe exécute cet initialiseur dans une copie mémoire synthétique puis lit
+les pointeurs réellement sélectionnés par le décodeur 0x1b95e4.
+Configuration de référence : texture GL_RGBA, aucun masque ni filtre,
+aucun attribut opaque / sans couleur, état du moteur synthétique à zéro.
+
+  bm 0/1  -> shader 40, source 0x2120c4, shader-40.frag :
+      tmp = texture2D(...);
+      tmp *= v_color;
+
+  bm 16/17 -> shader 80, source 0x2162a4, shader-80.frag :
+      tmp = texture2D(...);
+      tmp *= v_color;
+      tmp.rgb += tmp.rgb;
+
+  bm 3/4 -> shader 42, source 0x212290, shader-42.frag :
+      tmp = texture2D(...);
+      tmp *= v_color;
+      tmp.rgb *= tmp.a;
+
+  bm 19/20 -> shader 82, source 0x216498, shader-82.frag :
+      tmp = texture2D(...);
+      tmp *= v_color;
+      tmp.rgb += tmp.rgb;
+      tmp.rgb *= tmp.a;
+
+La prémultiplication dépend donc du mode de composition (Multiply/Screen),
+indépendamment du gain x2. Le vertex shader normalise a_color par 255.
+Les identifiants de shader ci-dessus dépendent des autres états du rendu ;
+les opérations RGB/alpha citées sont celles de cette configuration ordinaire.
+
+Appels GLES enregistrés dans le code natif
+
+Les arguments sont dans l'ordre de glBlendFuncSeparate : srcRGB, dstRGB,
+srcAlpha, dstAlpha. Le décodeur renvoie respectivement les sélecteurs 0,1,3,4.
+
+  alpha normale : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                  GL_ONE, GL_ONE_MINUS_SRC_ALPHA
+                  branche 0x1b75fa
+
+  addition      : GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE
+                  branche 0x1b761e
+
+  Multiply      : GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE
+                  branche 0x1b72e2 (shader RGB prémultiplié)
+
+  Screen        : GL_ONE_MINUS_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE
+                  branche 0x1b76d4 (shader RGB prémultiplié)
+
+Ces quatre modes utilisent GL_FUNC_ADD pour RGB et alpha.
+Le rendu conserve donc l'alpha de destination pour les trois modes spéciaux.
+En mode normal, un attribut de dessin opaque autorise une optimisation qui
+désactive le blending. Cela ne transforme pas bm=0 en un mode Copy général.
+
+Formules RGB équivalentes, hors arrondis et saturations
+
+T = RGB de texture, V = teinte RGB normalisée, A = alpha final du fragment
+(texture, couleur de sommet et opacité combinées), D = RGB déjà présent.
+C = T*V pour le chemin x1, C = 2*T*V pour le chemin x2.
+Les opérations sont composante par composante.
+
+  normal   : résultat = A*C + (1-A)*D
+  addition : résultat = D + A*C
+  Multiply : résultat = D*(1-A + A*C)
+  Screen   : résultat = D + (1-D)*A*C
+
+Autres branches vérifiées mais non observées dans les données examinées :
+le sélecteur bas 2 donne une soustraction inverse GL_FUNC_REVERSE_SUBTRACT
+(D - A*C), 5 emploie cette équation avec RGB source inversé, et 7 sélectionne
+un shader avec rejet des fragments transparents et des facteurs dépendant de
+l'alpha de destination. Ce rapport ne leur invente pas de noms d'éditeur.
+
+Corpus de données originales
+
+24 PSB d'animation distincts de alldata_original/{040,system}/motion.
+Les doublons .psb et .psb.m sont comptés une seule fois, version .m privilégiée.
+Nombre de contenus qui fournissent explicitement bm :
+
+  bm=0 : 304 ; bm=1 : 34 ; bm=17 : 112 ; bm=19 : 1 ; bm=20 : 300.
+
+bm=19 se trouve notamment dans system/motion/wall_bg06.psb.m,
+object/bg/motion/front/layer/1, label "フィルター" (filtre).
+bm=17 apparaît notamment dans les effets du curseur/save de titleselect_ui
+et titleselect_pause. bm=20 est utilisé dans les calques screen et les reflets.
+Voir corpus.json pour les chemins, libellés et contenus complets des exemples.
+Ce relevé confirme l'usage ; l'identification des modes vient du code natif.
+
+Contradictions des outils existants
+
+psb_viewer_web.py:304 applique Multiply à 17 : incorrect pour le moteur stock.
+Son intitulé "20: Additive" contredit aussi son code, qui applique Screen.
+m2engage-mac/docs/motion-rendering.html annonce également 17=Multiply : erroné.
+m2engage-mac/src/engine/renderer.cpp:397..404 emploie correctement Additive pour
+17 et Screen pour 20, mais son traitement n'est pas une référence suffisante
+pour la signification complète de bm, notamment le gain x2 et bm=19.
+Aucun de ces outils de rendu n'a été modifié par cette investigation.
+
+Reproduction et limites
+
+  python3 re/psb_bm_probe.py
+  python3 re/psb_bm_probe.py --corpus   (Python 3.14 pour compression.zstd)
+
+Le premier contrôle les valeurs par défaut, la lecture conditionnée par mask,
+la conservation des couleurs explicites, 42 cas de décodage, neuf branches GLES
+et six sources de shader. Sortie : native-probes.json et extraits .asm/.frag.
+Il nécessite radare2 et arm-linux-gnueabihf-objdump ; il réutilise le runner
+ARM/IT de tg16_profile_probe.py et corrige explicitement son chemin TBB/TBH.
+
+Binaire : rootfs/usr/game/m2engage
+SHA-256 : b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792
+L'empreinte est vérifiée avant et après. Aucun fichier du jeu n'est écrit.
+Les états de texture et de dessin sont synthétiques ; les appels GLES sont
+interceptés pour relever leurs arguments et ne sont pas envoyés à un GPU.
+Il s'agit d'une preuve du décodage, des shaders et des équations choisies par
+ce binaire, sans prétendre mesurer des pixels réels ni toutes les options M2.

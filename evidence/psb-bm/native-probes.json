@@ -1,0 +1,681 @@
+{
+  "binary": "rootfs/usr/game/m2engage",
+  "binary_sha256": "b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792",
+  "parser": {
+    "default_bm": 16,
+    "default_colors": [
+      "0x808080ff",
+      "0x808080ff",
+      "0x808080ff",
+      "0x808080ff"
+    ],
+    "mask_cases": [
+      {
+        "mask": 0,
+        "supplied_bm": 17,
+        "read_calls": [],
+        "result": 16
+      },
+      {
+        "mask": 131072,
+        "supplied_bm": 17,
+        "read_calls": [
+          "bm"
+        ],
+        "result": 17
+      }
+    ],
+    "explicit_colors": [
+      {
+        "bm": 0,
+        "colors": [
+          "0x12345678",
+          "0x12345678",
+          "0x12345678",
+          "0x12345678"
+        ]
+      },
+      {
+        "bm": 16,
+        "colors": [
+          "0x12345678",
+          "0x12345678",
+          "0x12345678",
+          "0x12345678"
+        ]
+      }
+    ]
+  },
+  "decoding": [
+    {
+      "flags": 0,
+      "bm": 0,
+      "shader": 40,
+      "blend": 0
+    },
+    {
+      "flags": 0,
+      "bm": 1,
+      "shader": 40,
+      "blend": 1
+    },
+    {
+      "flags": 0,
+      "bm": 2,
+      "shader": 40,
+      "blend": 2
+    },
+    {
+      "flags": 0,
+      "bm": 3,
+      "shader": 42,
+      "blend": 3
+    },
+    {
+      "flags": 0,
+      "bm": 4,
+      "shader": 42,
+      "blend": 4
+    },
+    {
+      "flags": 0,
+      "bm": 5,
+      "shader": 41,
+      "blend": 5
+    },
+    {
+      "flags": 0,
+      "bm": 6,
+      "shader": 40,
+      "blend": 0
+    },
+    {
+      "flags": 0,
+      "bm": 7,
+      "shader": 43,
+      "blend": 6
+    },
+    {
+      "flags": 0,
+      "bm": 16,
+      "shader": 80,
+      "blend": 0
+    },
+    {
+      "flags": 0,
+      "bm": 17,
+      "shader": 80,
+      "blend": 1
+    },
+    {
+      "flags": 0,
+      "bm": 18,
+      "shader": 80,
+      "blend": 2
+    },
+    {
+      "flags": 0,
+      "bm": 19,
+      "shader": 82,
+      "blend": 3
+    },
+    {
+      "flags": 0,
+      "bm": 20,
+      "shader": 82,
+      "blend": 4
+    },
+    {
+      "flags": 0,
+      "bm": 32,
+      "shader": 40,
+      "blend": 0
+    },
+    {
+      "flags": 2,
+      "bm": 0,
+      "shader": 40,
+      "blend": 8
+    },
+    {
+      "flags": 2,
+      "bm": 1,
+      "shader": 40,
+      "blend": 1
+    },
+    {
+      "flags": 2,
+      "bm": 2,
+      "shader": 40,
+      "blend": 2
+    },
+    {
+      "flags": 2,
+      "bm": 3,
+      "shader": 42,
+      "blend": 3
+    },
+    {
+      "flags": 2,
+      "bm": 4,
+      "shader": 42,
+      "blend": 4
+    },
+    {
+      "flags": 2,
+      "bm": 5,
+      "shader": 41,
+      "blend": 5
+    },
+    {
+      "flags": 2,
+      "bm": 6,
+      "shader": 40,
+      "blend": 8
+    },
+    {
+      "flags": 2,
+      "bm": 7,
+      "shader": 43,
+      "blend": 6
+    },
+    {
+      "flags": 2,
+      "bm": 16,
+      "shader": 80,
+      "blend": 8
+    },
+    {
+      "flags": 2,
+      "bm": 17,
+      "shader": 80,
+      "blend": 1
+    },
+    {
+      "flags": 2,
+      "bm": 18,
+      "shader": 80,
+      "blend": 2
+    },
+    {
+      "flags": 2,
+      "bm": 19,
+      "shader": 82,
+      "blend": 3
+    },
+    {
+      "flags": 2,
+      "bm": 20,
+      "shader": 82,
+      "blend": 4
+    },
+    {
+      "flags": 2,
+      "bm": 32,
+      "shader": 40,
+      "blend": 8
+    },
+    {
+      "flags": 4,
+      "bm": 0,
+      "shader": 0,
+      "blend": 0
+    },
+    {
+      "flags": 4,
+      "bm": 1,
+      "shader": 0,
+      "blend": 1
+    },
+    {
+      "flags": 4,
+      "bm": 2,
+      "shader": 0,
+      "blend": 2
+    },
+    {
+      "flags": 4,
+      "bm": 3,
+      "shader": 2,
+      "blend": 3
+    },
+    {
+      "flags": 4,
+      "bm": 4,
+      "shader": 2,
+      "blend": 4
+    },
+    {
+      "flags": 4,
+      "bm": 5,
+      "shader": 1,
+      "blend": 5
+    },
+    {
+      "flags": 4,
+      "bm": 6,
+      "shader": 0,
+      "blend": 0
+    },
+    {
+      "flags": 4,
+      "bm": 7,
+      "shader": 3,
+      "blend": 6
+    },
+    {
+      "flags": 4,
+      "bm": 16,
+      "shader": 0,
+      "blend": 0
+    },
+    {
+      "flags": 4,
+      "bm": 17,
+      "shader": 0,
+      "blend": 1
+    },
+    {
+      "flags": 4,
+      "bm": 18,
+      "shader": 0,
+      "blend": 2
+    },
+    {
+      "flags": 4,
+      "bm": 19,
+      "shader": 2,
+      "blend": 3
+    },
+    {
+      "flags": 4,
+      "bm": 20,
+      "shader": 2,
+      "blend": 4
+    },
+    {
+      "flags": 4,
+      "bm": 32,
+      "shader": 0,
+      "blend": 0
+    }
+  ],
+  "gl": [
+    {
+      "blend": 0,
+      "entry": "0x1b75fa",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            770,
+            771,
+            1,
+            771
+          ],
+          "names": [
+            "GL_SRC_ALPHA",
+            "GL_ONE_MINUS_SRC_ALPHA",
+            "GL_ONE",
+            "GL_ONE_MINUS_SRC_ALPHA"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 1,
+      "entry": "0x1b761e",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            770,
+            1,
+            0,
+            1
+          ],
+          "names": [
+            "GL_SRC_ALPHA",
+            "GL_ONE",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 2,
+      "entry": "0x1b75d6",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32779,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_REVERSE_SUBTRACT",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            770,
+            1,
+            0,
+            1
+          ],
+          "names": [
+            "GL_SRC_ALPHA",
+            "GL_ONE",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 3,
+      "entry": "0x1b72e2",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            774,
+            771,
+            0,
+            1
+          ],
+          "names": [
+            "GL_DST_COLOR",
+            "GL_ONE_MINUS_SRC_ALPHA",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 4,
+      "entry": "0x1b76d4",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            775,
+            1,
+            0,
+            1
+          ],
+          "names": [
+            "GL_ONE_MINUS_DST_COLOR",
+            "GL_ONE",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 5,
+      "entry": "0x1b75d6",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32779,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_REVERSE_SUBTRACT",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            770,
+            1,
+            0,
+            1
+          ],
+          "names": [
+            "GL_SRC_ALPHA",
+            "GL_ONE",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 6,
+      "entry": "0x1b7744",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            773,
+            772,
+            0,
+            1
+          ],
+          "names": [
+            "GL_ONE_MINUS_DST_ALPHA",
+            "GL_DST_ALPHA",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 7,
+      "entry": "0x1b76e6",
+      "calls": [
+        {
+          "call": "glBlendEquationSeparate",
+          "args": [
+            32774,
+            32774
+          ],
+          "names": [
+            "GL_FUNC_ADD",
+            "GL_FUNC_ADD"
+          ]
+        },
+        {
+          "call": "glBlendFuncSeparate",
+          "args": [
+            770,
+            771,
+            0,
+            1
+          ],
+          "names": [
+            "GL_SRC_ALPHA",
+            "GL_ONE_MINUS_SRC_ALPHA",
+            "GL_ZERO",
+            "GL_ONE"
+          ]
+        },
+        {
+          "call": "glEnable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    },
+    {
+      "blend": 8,
+      "entry": "0x1b76f6",
+      "calls": [
+        {
+          "call": "glDisable",
+          "args": [
+            3042
+          ],
+          "names": [
+            "GL_BLEND"
+          ]
+        }
+      ]
+    }
+  ],
+  "shaders": [
+    {
+      "shader": 0,
+      "source_address": "0x20e4e8",
+      "source_file": "shader-0.frag"
+    },
+    {
+      "shader": 2,
+      "source_address": "0x20e664",
+      "source_file": "shader-2.frag"
+    },
+    {
+      "shader": 40,
+      "source_address": "0x2120c4",
+      "source_file": "shader-40.frag"
+    },
+    {
+      "shader": 42,
+      "source_address": "0x212290",
+      "source_file": "shader-42.frag"
+    },
+    {
+      "shader": 80,
+      "source_address": "0x2162a4",
+      "source_file": "shader-80.frag"
+    },
+    {
+      "shader": 82,
+      "source_address": "0x216498",
+      "source_file": "shader-82.frag"
+    }
+  ],
+  "limitations": "Synthetic ARM state, texture and draw flags; GL calls are recorded, not sent to a GPU. Original ELF and resources are read-only."
+}

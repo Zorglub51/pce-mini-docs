@@ -20,6 +20,7 @@
     <div class="section-label">File Formats</div>
     <ul>
       <li><a href="mzs-format.html" class="active">MZS / PSB Format</a></li>
+      <li><a href="psb-format.html">Format PSB</a></li>
       <li><a href="title-mode-top.html">title_mode_top</a></li>
       <li><a href="title-prof.html">title_prof</a></li>
       <li><a href="cover-motion.html">Cover Motion PSBs</a></li>
@@ -104,11 +105,13 @@ For each payload byte at position i:
       The magic bytes after decryption should be <code>0x28 0xB5 0x2F 0xFD</code> (zstd frame magic).
     </p>
 
-    <h2>PSB Binary Format</h2>
+    <h2 id="psb-binary-format">PSB Binary Format</h2>
     <p>
       PSB (PackageSuB) is M2's proprietary binary format for structured data.
       Think of it as a binary JSON with support for embedded binary resources (textures, etc.).
     </p>
+
+    <p>For animation blend modes, RGB gain and presence masks, see <a href="psb-format.html">Format PSB</a>.</p>
 
     <h3>PSB Header</h3>
     <div class="diagram">

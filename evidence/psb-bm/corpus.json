@@ -1,0 +1,617 @@
+{
+  "files": 24,
+  "counts": {
+    "0": 304,
+    "1": 34,
+    "20": 300,
+    "17": 112,
+    "19": 1
+  },
+  "per_file": [
+    {
+      "file": "alldata_original/040/motion/bg01.psb.m",
+      "counts": {
+        "0": 1
+      }
+    },
+    {
+      "file": "alldata_original/040/motion/emu_screen.psb.m",
+      "counts": {
+        "0": 1
+      }
+    },
+    {
+      "file": "alldata_original/040/motion/logo_publisher.psb.m",
+      "counts": {
+        "0": 1
+      }
+    },
+    {
+      "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/040/motion/title_jp_titleselect_us.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/040/motion/warning_copy.psb.m",
+      "counts": {
+        "0": 8
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/bg00.psb.m",
+      "counts": {
+        "0": 2
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/itemindicator.psb.m",
+      "counts": {
+        "0": 22
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/leaderboard.psb.m",
+      "counts": {
+        "0": 9
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/logo_m2.psb.m",
+      "counts": {
+        "0": 68
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/menu_dialog.psb.m",
+      "counts": {
+        "0": 99,
+        "1": 34
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/nowloading.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/titleselect_logo.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+      "counts": {
+        "0": 18,
+        "20": 40,
+        "17": 11
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/titleselect_title.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/titleselect_ui.psb.m",
+      "counts": {
+        "20": 260,
+        "0": 73,
+        "17": 99
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/titleselect_warning.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg01.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg02.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg03.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg04.psb.m",
+      "counts": {
+        "0": 1
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg05.psb.m",
+      "counts": {}
+    },
+    {
+      "file": "alldata_original/system/motion/wall_bg06.psb.m",
+      "counts": {
+        "17": 2,
+        "19": 1
+      }
+    },
+    {
+      "file": "alldata_original/system/motion/wipe.psb.m",
+      "counts": {
+        "0": 1
+      }
+    }
+  ],
+  "examples": {
+    "0": [
+      {
+        "file": "alldata_original/040/motion/bg01.psb.m",
+        "path": "/object/bg/motion/stand/layer/0/frameList/0/content",
+        "labels": [
+          "新規プロジェクト",
+          "bg"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/040/motion/emu_screen.psb.m",
+        "path": "/object/emu_screen/motion/stand/layer/0/frameList/0/content",
+        "labels": [
+          "emu_screen",
+          "レイヤ1"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/040/motion/logo_publisher.psb.m",
+        "path": "/object/logo_publisher/motion/stand/layer/0/frameList/0/content",
+        "labels": [
+          "logo_publisher",
+          "レイヤ1"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/040/motion/warning_copy.psb.m",
+        "path": "/object/warning_copy/motion/stand/layer/0/frameList/0/content",
+        "labels": [
+          "warning_copy",
+          "レイヤ1"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/040/motion/warning_copy.psb.m",
+        "path": "/object/warning_copy/motion/stand_eur/layer/0/frameList/0/content",
+        "labels": [
+          "warning_copy",
+          "レイヤ1"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/040/motion/warning_copy.psb.m",
+        "path": "/object/warning_copy/motion/stand_jpn/layer/0/frameList/0/content",
+        "labels": [
+          "warning_copy",
+          "レイヤ1"
+        ],
+        "content": {
+          "bm": 0,
+          "icon": "0000",
+          "mask": 131072,
+          "src": "tex"
+        }
+      }
+    ],
+    "1": [
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/0/frameList/0/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ2"
+        ],
+        "content": {
+          "bm": 1,
+          "color": [
+            4294967295,
+            4294967040,
+            4294967040,
+            4294967295
+          ],
+          "icon": "0057",
+          "mask": 131584,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/0/frameList/1/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ2"
+        ],
+        "content": {
+          "bm": 1,
+          "color": [
+            4294967295,
+            4294967040,
+            4294967040,
+            4294967295
+          ],
+          "icon": "0057",
+          "mask": 132704,
+          "opa": 128,
+          "src": "tex",
+          "zx": 1,
+          "zy": 0.8999999761581421
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/0/frameList/2/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ2"
+        ],
+        "content": {
+          "bm": 1,
+          "color": [
+            4294967295,
+            4294967040,
+            4294967040,
+            4294967295
+          ],
+          "icon": "0057",
+          "mask": 131584,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/1/frameList/0/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ3"
+        ],
+        "content": {
+          "bm": 1,
+          "coord": [
+            -95.0,
+            0.0,
+            0.0
+          ],
+          "icon": "0058",
+          "mask": 131074,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/1/frameList/1/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ3"
+        ],
+        "content": {
+          "angle": 179,
+          "bm": 1,
+          "coord": [
+            -95.0,
+            0.0,
+            0.0
+          ],
+          "icon": "0058",
+          "mask": 132210,
+          "opa": 64,
+          "src": "tex",
+          "zx": 1.399999976158142,
+          "zy": 0.10000000149011612
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/menu_dialog.psb.m",
+        "path": "/object/cursol2/motion/stand/layer/1/frameList/2/content",
+        "labels": [
+          "新規プロジェクト",
+          "レイヤ3"
+        ],
+        "content": {
+          "angle": 359,
+          "bm": 1,
+          "coord": [
+            -95.0,
+            0.0,
+            0.0
+          ],
+          "icon": "0058",
+          "mask": 131090,
+          "src": "tex"
+        }
+      }
+    ],
+    "20": [
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/0/children/0/frameList/0/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado1",
+          "selectframe_kado1"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 132609,
+          "opa": 0,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/0/children/0/frameList/1/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado1",
+          "selectframe_kado1"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 131585,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/0/children/0/frameList/2/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado1",
+          "selectframe_kado1"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 132609,
+          "opa": 0,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/0/children/0/frameList/3/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado1",
+          "selectframe_kado1"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 132609,
+          "opa": 0.0,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/1/children/0/frameList/0/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado3",
+          "selectframe_kado3"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 132609,
+          "opa": 0,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/frameのコピー/layer/0/children/1/children/0/frameList/1/content",
+        "labels": [
+          "bg_TitleSelect",
+          "set",
+          "selectframe_kado3",
+          "selectframe_kado3"
+        ],
+        "content": {
+          "bm": 20,
+          "color": 4294967295,
+          "icon": "0038",
+          "mask": 131585,
+          "ox": 4,
+          "oy": 4,
+          "src": "tex"
+        }
+      }
+    ],
+    "17": [
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/1/frameList/0/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "icon": "0037",
+          "mask": 132193,
+          "opa": 0,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3,
+          "zy": 3
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/1/frameList/1/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "icon": "0037",
+          "mask": 132193,
+          "opa": 128,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3,
+          "zy": 3
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/1/frameList/2/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "icon": "0037",
+          "mask": 132193,
+          "opa": 0.0,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3.0,
+          "zy": 3.0
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/2/frameList/0/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "color": 4291126271,
+          "icon": "0036",
+          "mask": 132705,
+          "opa": 0,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3,
+          "zy": 3
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/2/frameList/1/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "color": 4291126271,
+          "icon": "0036",
+          "mask": 132705,
+          "opa": 64,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3,
+          "zy": 3
+        }
+      },
+      {
+        "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+        "path": "/object/cursol/motion/save/layer/2/frameList/2/content",
+        "labels": [
+          "bg_TitleSelect",
+          "main"
+        ],
+        "content": {
+          "bm": 17,
+          "color": 4291126271,
+          "icon": "0036",
+          "mask": 132705,
+          "opa": 0.0,
+          "ox": -0.5,
+          "oy": 17,
+          "src": "tex",
+          "zx": 3.0,
+          "zy": 3.0
+        }
+      }
+    ],
+    "19": [
+      {
+        "file": "alldata_original/system/motion/wall_bg06.psb.m",
+        "path": "/object/bg/motion/front/layer/1/frameList/0/content",
+        "labels": [
+          "新規プロジェクト",
+          "フィルター"
+        ],
+        "content": {
+          "bm": 19,
+          "coord": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "icon": "0006",
+          "mask": 131074,
+          "src": "tex#001"
+        }
+      }
+    ]
+  }
+}

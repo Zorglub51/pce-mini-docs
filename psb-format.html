@@ -260,10 +260,16 @@ Screen:   D + (1-D)*A*C</code></pre>
     <p>A subsequent Mac GPU comparison uses the original shader 82 (<code>0x216498</code>)
       with the actual orange cursor texel (241,145,73). For bm=20, white tint, full opacity
       and the same orange background, the original shader and the port both produce
-      (255,255,177). This is an isolated shader comparison on the Mac, not a console capture.
-      The reported difference between a white console glow and the Mac's yellow glow is
-      still unresolved at the complete-scene level; these equations alone do not establish
-      visual parity with the console.</p>
+      (255,255,177). Rendering the complete stock <code>cursol/front</code> hierarchy
+      at frame 60 also produces the same pixels as its <code>front_wakuani_1</code>
+      sub-motion.</p>
+    <p>Console reference images supplied on 15 October 2026 show a cream-white peak,
+      with sampled frame cores around RGB (240,235,181), rather than neutral white.
+      A live Mac capture also reaches cream-white, around (254,254,180); the exact
+      offscreen peak remains (255,255,177). These observations are consistent with
+      bm=20 Screen &times;2. Different scaling and unknown capture color conversion
+      prevent an exact color comparison; the references do not validate every phase
+      of the animation or all native rendering paths.</p>
     <p>A separate scan of 24 distinct stock motion PSBs found explicit bm values
       0 (304 contents), 1 (34), 17 (112), 19 (1) and 20 (300). The bm=19 example is
       <code>system/motion/wall_bg06.psb.m</code>, object bg, motion front, layer 1,

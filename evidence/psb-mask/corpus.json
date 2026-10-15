@@ -1,0 +1,1514 @@
+{
+  "files": [
+    "alldata_original/040/motion/bg01.psb.m",
+    "alldata_original/040/motion/emu_screen.psb.m",
+    "alldata_original/040/motion/logo_publisher.psb.m",
+    "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+    "alldata_original/040/motion/title_jp_titleselect_us.psb.m",
+    "alldata_original/040/motion/warning_copy.psb.m",
+    "alldata_original/system/motion/bg00.psb.m",
+    "alldata_original/system/motion/itemindicator.psb.m",
+    "alldata_original/system/motion/leaderboard.psb.m",
+    "alldata_original/system/motion/logo_m2.psb.m",
+    "alldata_original/system/motion/menu_dialog.psb.m",
+    "alldata_original/system/motion/nowloading.psb.m",
+    "alldata_original/system/motion/titleselect_logo.psb.m",
+    "alldata_original/system/motion/titleselect_pause.psb.m",
+    "alldata_original/system/motion/titleselect_title.psb.m",
+    "alldata_original/system/motion/titleselect_ui.psb.m",
+    "alldata_original/system/motion/titleselect_warning.psb.m",
+    "alldata_original/system/motion/wall_bg01.psb.m",
+    "alldata_original/system/motion/wall_bg02.psb.m",
+    "alldata_original/system/motion/wall_bg03.psb.m",
+    "alldata_original/system/motion/wall_bg04.psb.m",
+    "alldata_original/system/motion/wall_bg05.psb.m",
+    "alldata_original/system/motion/wall_bg06.psb.m",
+    "alldata_original/system/motion/wipe.psb.m"
+  ],
+  "contexts": {
+    "content": {
+      "0": 558,
+      "1": 6,
+      "2": 385,
+      "3": 40,
+      "12": 19,
+      "13": 13,
+      "14": 37,
+      "15": 24,
+      "16": 3,
+      "18": 8,
+      "30": 3,
+      "96": 421,
+      "97": 34,
+      "98": 414,
+      "99": 200,
+      "108": 28,
+      "109": 2,
+      "110": 174,
+      "111": 281,
+      "114": 3,
+      "115": 11,
+      "124": 24,
+      "126": 39,
+      "127": 86,
+      "512": 5,
+      "515": 1,
+      "608": 33,
+      "609": 2,
+      "610": 2,
+      "620": 1,
+      "621": 2,
+      "1024": 211,
+      "1026": 10,
+      "1038": 2,
+      "1120": 74,
+      "1122": 26,
+      "1134": 12,
+      "2144": 15,
+      "2146": 98,
+      "2158": 204,
+      "3170": 2,
+      "3182": 6,
+      "8192": 11,
+      "8288": 28,
+      "8290": 12,
+      "9312": 2,
+      "33792": 16,
+      "65634": 3,
+      "131072": 86,
+      "131074": 45,
+      "131075": 76,
+      "131090": 1,
+      "131168": 51,
+      "131169": 3,
+      "131170": 18,
+      "131171": 16,
+      "131183": 32,
+      "131184": 24,
+      "131186": 11,
+      "131187": 12,
+      "131199": 16,
+      "131570": 4,
+      "131571": 2,
+      "131584": 13,
+      "131585": 8,
+      "131586": 2,
+      "131587": 18,
+      "131680": 24,
+      "131681": 4,
+      "131682": 24,
+      "131683": 33,
+      "131692": 3,
+      "131693": 4,
+      "131695": 26,
+      "131697": 4,
+      "131699": 3,
+      "131711": 15,
+      "132096": 40,
+      "132098": 3,
+      "132192": 28,
+      "132193": 9,
+      "132208": 12,
+      "132210": 1,
+      "132609": 24,
+      "132704": 23,
+      "132705": 6,
+      "132706": 8,
+      "139264": 13,
+      "140384": 2,
+      "150016": 2,
+      "150018": 2,
+      "524288": 523,
+      "524289": 1,
+      "524290": 373,
+      "524300": 6,
+      "524306": 3,
+      "524384": 56,
+      "524386": 33,
+      "524402": 1,
+      "524414": 1,
+      "524896": 6,
+      "525312": 67,
+      "525314": 26,
+      "525324": 6,
+      "525408": 14,
+      "525410": 8,
+      "525420": 3,
+      "525824": 6,
+      "526336": 20,
+      "526338": 29,
+      "526432": 12,
+      "526434": 24,
+      "532480": 6,
+      "1048576": 11,
+      "1048578": 4,
+      "1048672": 12,
+      "1049696": 9
+    },
+    "motion": {
+      "0": 1224
+    },
+    "prt": {
+      "2": 8,
+      "3": 13,
+      "27": 15
+    },
+    "layerIndexMap": {
+      "1": 37,
+      "3": 3
+    }
+  },
+  "bits": [
+    {
+      "bit": 0,
+      "hex": "0x00000001",
+      "count": 1014,
+      "keys": {
+        "mask": 1014,
+        "ox": 1014,
+        "oy": 1014,
+        "zx": 803,
+        "zy": 803,
+        "icon": 1000,
+        "motion": 1,
+        "src": 1000,
+        "angle": 149,
+        "bm": 311,
+        "coord": 892,
+        "sx": 2,
+        "sy": 2,
+        "color": 150,
+        "fx": 501,
+        "fy": 501,
+        "opa": 39
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/itemindicator.psb.m",
+          "path": "/object/indicator/motion/meter/layer/1/children/0/frameList/0/content",
+          "layer_type": 7,
+          "frame_type": 2,
+          "content": {
+            "mask": 97,
+            "ox": -16,
+            "oy": 16,
+            "zx": 0.5,
+            "zy": 1
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/itemindicator.psb.m",
+          "path": "/object/indicator/motion/meter_in/layer/1/children/0/children/0/frameList/0/content",
+          "layer_type": 3,
+          "frame_type": 3,
+          "content": {
+            "icon": "stand",
+            "mask": 524289,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "ox": 0,
+            "oy": 2,
+            "src": "slash"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 1,
+      "hex": "0x00000002",
+      "count": 2953,
+      "keys": {
+        "coord": 2953,
+        "icon": 2815,
+        "mask": 2953,
+        "src": 2815,
+        "opa": 104,
+        "angle": 220,
+        "bm": 368,
+        "color": 134,
+        "zx": 1861,
+        "zy": 1861,
+        "motion": 498,
+        "ccc": 365,
+        "scc": 2,
+        "sx": 6,
+        "sy": 6,
+        "ox": 892,
+        "oy": 892,
+        "fx": 958,
+        "fy": 958,
+        "cp": 3,
+        "prt": 4,
+        "zcc": 12
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/0/children/0/frameList/1/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              126.0,
+              0.0,
+              0.0
+            ],
+            "icon": "0047",
+            "mask": 2,
+            "src": "tex#001"
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/0/children/0/frameList/2/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              73.0,
+              0.0,
+              0.0
+            ],
+            "icon": "大魔界村_紙ジャケ_修正後b",
+            "mask": 1026,
+            "opa": 0,
+            "src": "front"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 2,
+      "hex": "0x00000004",
+      "count": 1069,
+      "keys": {
+        "fx": 1069,
+        "fy": 1069,
+        "mask": 1069,
+        "coord": 958,
+        "bm": 96,
+        "color": 51,
+        "icon": 1019,
+        "ox": 501,
+        "oy": 501,
+        "src": 1019,
+        "zx": 959,
+        "zy": 959,
+        "motion": 16,
+        "opa": 29,
+        "ccc": 210,
+        "angle": 184
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 2,
+          "content": {
+            "fx": 1,
+            "fy": 0,
+            "mask": 12
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/M/layer/1/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              -1,
+              0,
+              0
+            ],
+            "fx": 1,
+            "fy": 0,
+            "mask": 14
+          }
+        }
+      ]
+    },
+    {
+      "bit": 3,
+      "hex": "0x00000008",
+      "count": 1069,
+      "keys": {
+        "fx": 1069,
+        "fy": 1069,
+        "mask": 1069,
+        "coord": 958,
+        "bm": 96,
+        "color": 51,
+        "icon": 1019,
+        "ox": 501,
+        "oy": 501,
+        "src": 1019,
+        "zx": 959,
+        "zy": 959,
+        "motion": 16,
+        "opa": 29,
+        "ccc": 210,
+        "angle": 184
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 2,
+          "content": {
+            "fx": 1,
+            "fy": 0,
+            "mask": 12
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/M/layer/1/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              -1,
+              0,
+              0
+            ],
+            "fx": 1,
+            "fy": 0,
+            "mask": 14
+          }
+        }
+      ]
+    },
+    {
+      "bit": 4,
+      "hex": "0x00000010",
+      "count": 287,
+      "keys": {
+        "angle": 287,
+        "coord": 220,
+        "icon": 279,
+        "mask": 287,
+        "src": 279,
+        "bm": 105,
+        "zx": 269,
+        "zy": 269,
+        "sx": 6,
+        "sy": 6,
+        "ox": 149,
+        "oy": 149,
+        "color": 22,
+        "opa": 13,
+        "fx": 184,
+        "fy": 184,
+        "motion": 5
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/soft32/layer/4/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "angle": 270,
+            "coord": [
+              96.0,
+              0.0,
+              0.0
+            ],
+            "icon": "0028",
+            "mask": 18,
+            "src": "tex#000"
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/soft33/layer/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "angle": 270,
+            "coord": [
+              -96.0,
+              0.0,
+              0.0
+            ],
+            "icon": "0029",
+            "mask": 18,
+            "src": "tex#000"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 5,
+      "hex": "0x00000020",
+      "count": 2836,
+      "keys": {
+        "icon": 2670,
+        "mask": 2836,
+        "motion": 158,
+        "src": 2670,
+        "zx": 2836,
+        "zy": 2836,
+        "bm": 418,
+        "color": 223,
+        "coord": 1861,
+        "ox": 803,
+        "oy": 803,
+        "angle": 269,
+        "sx": 6,
+        "sy": 6,
+        "fx": 959,
+        "fy": 959,
+        "opa": 245,
+        "cp": 3,
+        "zcc": 44,
+        "ccc": 361,
+        "prt": 21
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/thumb/layer/0/frameList/0/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "front",
+            "mask": 524384,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg",
+            "zx": 0.11500000208616257,
+            "zy": 0.11500000208616257
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_us.psb.m",
+          "path": "/object/pkg/motion/thumb/layer/0/frameList/0/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "front",
+            "mask": 524384,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg",
+            "zx": 0.11500000208616257,
+            "zy": 0.11500000208616257
+          }
+        }
+      ]
+    },
+    {
+      "bit": 6,
+      "hex": "0x00000040",
+      "count": 2836,
+      "keys": {
+        "icon": 2670,
+        "mask": 2836,
+        "motion": 158,
+        "src": 2670,
+        "zx": 2836,
+        "zy": 2836,
+        "bm": 418,
+        "color": 223,
+        "coord": 1861,
+        "ox": 803,
+        "oy": 803,
+        "angle": 269,
+        "sx": 6,
+        "sy": 6,
+        "fx": 959,
+        "fy": 959,
+        "opa": 245,
+        "cp": 3,
+        "zcc": 44,
+        "ccc": 361,
+        "prt": 21
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/thumb/layer/0/frameList/0/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "front",
+            "mask": 524384,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg",
+            "zx": 0.11500000208616257,
+            "zy": 0.11500000208616257
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_us.psb.m",
+          "path": "/object/pkg/motion/thumb/layer/0/frameList/0/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "front",
+            "mask": 524384,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg",
+            "zx": 0.11500000208616257,
+            "zy": 0.11500000208616257
+          }
+        }
+      ]
+    },
+    {
+      "bit": 7,
+      "hex": "0x00000080",
+      "count": 6,
+      "keys": {
+        "angle": 6,
+        "bm": 6,
+        "coord": 6,
+        "icon": 6,
+        "mask": 6,
+        "src": 6,
+        "sx": 6,
+        "sy": 6,
+        "zx": 6,
+        "zy": 6,
+        "ox": 2,
+        "oy": 2
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/2/layer/0/children/2/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "angle": 282,
+            "bm": 0,
+            "coord": [
+              -1.0,
+              -6.0,
+              0.0
+            ],
+            "icon": "0003",
+            "mask": 131570,
+            "src": "tex",
+            "sx": 0,
+            "sy": -0.20000000298023224,
+            "zx": 0.3083004057407379,
+            "zy": 0.9728506803512573
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/2/layer/0/children/2/frameList/1/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "angle": 298.54345703125,
+            "bm": 0,
+            "coord": [
+              -2.0,
+              -6.0,
+              0.0
+            ],
+            "icon": "0003",
+            "mask": 131570,
+            "src": "tex",
+            "sx": 0,
+            "sy": -0.5,
+            "zx": 0.37861451506614685,
+            "zy": 0.8235294222831726
+          }
+        }
+      ]
+    },
+    {
+      "bit": 8,
+      "hex": "0x00000100",
+      "count": 6,
+      "keys": {
+        "angle": 6,
+        "bm": 6,
+        "coord": 6,
+        "icon": 6,
+        "mask": 6,
+        "src": 6,
+        "sx": 6,
+        "sy": 6,
+        "zx": 6,
+        "zy": 6,
+        "ox": 2,
+        "oy": 2
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/2/layer/0/children/2/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "angle": 282,
+            "bm": 0,
+            "coord": [
+              -1.0,
+              -6.0,
+              0.0
+            ],
+            "icon": "0003",
+            "mask": 131570,
+            "src": "tex",
+            "sx": 0,
+            "sy": -0.20000000298023224,
+            "zx": 0.3083004057407379,
+            "zy": 0.9728506803512573
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/logo_m2.psb.m",
+          "path": "/object/M2/motion/2/layer/0/children/2/frameList/1/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "angle": 298.54345703125,
+            "bm": 0,
+            "coord": [
+              -2.0,
+              -6.0,
+              0.0
+            ],
+            "icon": "0003",
+            "mask": 131570,
+            "src": "tex",
+            "sx": 0,
+            "sy": -0.5,
+            "zx": 0.37861451506614685,
+            "zy": 0.8235294222831726
+          }
+        }
+      ]
+    },
+    {
+      "bit": 9,
+      "hex": "0x00000200",
+      "count": 304,
+      "keys": {
+        "bm": 246,
+        "color": 304,
+        "coord": 134,
+        "icon": 304,
+        "mask": 304,
+        "src": 304,
+        "zx": 223,
+        "zy": 223,
+        "ccc": 4,
+        "scc": 4,
+        "ox": 150,
+        "oy": 150,
+        "fx": 51,
+        "fy": 51,
+        "angle": 22,
+        "opa": 67,
+        "motion": 12
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/bg00.psb.m",
+          "path": "/object/bg/motion/stand/layer/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "bm": 0,
+            "color": [
+              269488383,
+              269488383,
+              943341567,
+              943341567
+            ],
+            "coord": [
+              -480,
+              0.0,
+              0.0
+            ],
+            "icon": "0000",
+            "mask": 131682,
+            "src": "tex",
+            "zx": 60,
+            "zy": 90
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/bg00.psb.m",
+          "path": "/object/bg/motion/stand/layer/1/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "bm": 0,
+            "color": [
+              269488383,
+              269488383,
+              943341567,
+              943341567
+            ],
+            "coord": [
+              480,
+              0.0,
+              0.0
+            ],
+            "icon": "0000",
+            "mask": 131682,
+            "src": "tex",
+            "zx": 60,
+            "zy": 90
+          }
+        }
+      ]
+    },
+    {
+      "bit": 10,
+      "hex": "0x00000400",
+      "count": 656,
+      "keys": {
+        "coord": 104,
+        "icon": 419,
+        "mask": 656,
+        "opa": 656,
+        "src": 419,
+        "motion": 130,
+        "zx": 245,
+        "zy": 245,
+        "fx": 29,
+        "fy": 29,
+        "bm": 156,
+        "color": 67,
+        "angle": 13,
+        "ox": 39,
+        "oy": 39,
+        "ccc": 8,
+        "occ": 16,
+        "zcc": 4,
+        "prt": 9
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/0/children/0/frameList/2/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              73.0,
+              0.0,
+              0.0
+            ],
+            "icon": "大魔界村_紙ジャケ_修正後b",
+            "mask": 1026,
+            "opa": 0,
+            "src": "front"
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/0/children/1/frameList/2/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "coord": [
+              73.0,
+              0.0,
+              0.0
+            ],
+            "icon": "大魔界村_紙ジャケ_修正後b",
+            "mask": 1026,
+            "opa": 0,
+            "src": "front"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 11,
+      "hex": "0x00000800",
+      "count": 414,
+      "keys": {
+        "bm": 4,
+        "ccc": 414,
+        "color": 4,
+        "icon": 414,
+        "mask": 414,
+        "scc": 4,
+        "src": 414,
+        "coord": 365,
+        "motion": 85,
+        "zx": 361,
+        "zy": 361,
+        "fx": 210,
+        "fy": 210,
+        "opa": 8
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/children/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "bm": 0,
+            "ccc": 0,
+            "color": [
+              349241343,
+              349241343,
+              4294967295,
+              4294967295
+            ],
+            "icon": "0000",
+            "mask": 150016,
+            "scc": 1,
+            "src": "tex#000"
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/children/0/frameList/1/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "bm": 0,
+            "ccc": 2,
+            "color": [
+              349241343,
+              349241343,
+              4294967295,
+              4294967295
+            ],
+            "coord": [
+              4.0,
+              0.0,
+              0.0
+            ],
+            "icon": "0000",
+            "mask": 150018,
+            "scc": 1,
+            "src": "tex#000"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 12,
+      "hex": "0x00001000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 13,
+      "hex": "0x00002000",
+      "count": 74,
+      "keys": {
+        "bm": 15,
+        "icon": 35,
+        "mask": 74,
+        "src": 35,
+        "zcc": 74,
+        "zx": 44,
+        "zy": 44,
+        "opa": 4,
+        "motion": 6,
+        "coord": 12
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/menu_dialog.psb.m",
+          "path": "/object/cursol/motion/stand/layer/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "bm": 0,
+            "icon": "0045",
+            "mask": 139264,
+            "src": "tex",
+            "zcc": 0
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/nowloading.psb.m",
+          "path": "/object/NOW_LOADING/motion/bg_close/layer/1/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 3,
+          "content": {
+            "mask": 8192,
+            "zcc": 0
+          }
+        }
+      ]
+    },
+    {
+      "bit": 14,
+      "hex": "0x00004000",
+      "count": 4,
+      "keys": {
+        "bm": 4,
+        "ccc": 4,
+        "color": 4,
+        "icon": 4,
+        "mask": 4,
+        "scc": 4,
+        "src": 4,
+        "coord": 2
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/children/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "bm": 0,
+            "ccc": 0,
+            "color": [
+              349241343,
+              349241343,
+              4294967295,
+              4294967295
+            ],
+            "icon": "0000",
+            "mask": 150016,
+            "scc": 1,
+            "src": "tex#000"
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/leaderboard.psb.m",
+          "path": "/object/page_minus/motion/stand/layer/0/children/0/children/0/frameList/1/content",
+          "layer_type": 0,
+          "frame_type": 3,
+          "content": {
+            "bm": 0,
+            "ccc": 2,
+            "color": [
+              349241343,
+              349241343,
+              4294967295,
+              4294967295
+            ],
+            "coord": [
+              4.0,
+              0.0,
+              0.0
+            ],
+            "icon": "0000",
+            "mask": 150018,
+            "scc": 1,
+            "src": "tex#000"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 15,
+      "hex": "0x00008000",
+      "count": 16,
+      "keys": {
+        "mask": 16,
+        "occ": 16,
+        "opa": 16
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+          "path": "/object/cursol/motion/pause/layer/1/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 3,
+          "content": {
+            "mask": 33792,
+            "occ": 2,
+            "opa": 0
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+          "path": "/object/cursol/motion/pause/layer/1/frameList/1/content",
+          "layer_type": 2,
+          "frame_type": 3,
+          "content": {
+            "mask": 33792,
+            "occ": 2,
+            "opa": 128
+          }
+        }
+      ]
+    },
+    {
+      "bit": 16,
+      "hex": "0x00010000",
+      "count": 3,
+      "keys": {
+        "coord": 3,
+        "cp": 3,
+        "mask": 3,
+        "zx": 3,
+        "zy": 3
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/menu_dialog.psb.m",
+          "path": "/object/anime_icon/motion/I/layer/0/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 3,
+          "content": {
+            "coord": [
+              36,
+              0,
+              0
+            ],
+            "cp": {
+              "c": [
+                1,
+                1
+              ],
+              "s": [
+                {
+                  "p": [
+                    0.0,
+                    -6.233933448791504,
+                    -0.7990020513534546,
+                    -0.411052405834198,
+                    0.04118620231747627,
+                    0.2133491337299347,
+                    0.8526816964149475,
+                    0.631308376789093,
+                    5.921304225921631,
+                    0.0
+                  ],
+                  "x": [
+                    0.0,
+                    0.10000000149011612,
+                    0.20000000298023224,
+                    0.4000000059604645,
+                    0.5,
+                    0.6000000238418579,
+                    0.699999988079071,
+                    0.800000011920929,
+                    0.8999999761581421,
+                    1.0
+                  ],
+                  "y": [
+                    0.0,
+                    0.14800773561000824,
+                    0.25312426686286926,
+                    0.4238571226596832,
+                    0.5025182962417603,
+                    0.5811246037483215,
+                    0.6626429557800293,
+                    0.7512536644935608,
+                    0.8553630709648132,
+                    1.0
+                  ]
+                }
+              ],
+              "t": [
+                0.0,
+                1.0
+              ],
+              "x": [
+                0,
+                0.09375,
+                0.8958333134651184,
+                1
+              ],
+              "y": [
+                0,
+                -0.1631944477558136,
+                -0.1631944477558136,
+                0
+              ]
+            },
+            "mask": 65634,
+            "zx": 0.5,
+            "zy": 0.5
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/menu_dialog.psb.m",
+          "path": "/object/storage_access/motion/I/layer/0/frameList/0/content",
+          "layer_type": 2,
+          "frame_type": 3,
+          "content": {
+            "coord": [
+              108,
+              0,
+              0
+            ],
+            "cp": {
+              "c": [
+                1,
+                1
+              ],
+              "s": [
+                {
+                  "p": [
+                    0.0,
+                    -6.233933448791504,
+                    -0.7990020513534546,
+                    -0.411052405834198,
+                    0.04118620231747627,
+                    0.2133491337299347,
+                    0.8526816964149475,
+                    0.631308376789093,
+                    5.921304225921631,
+                    0.0
+                  ],
+                  "x": [
+                    0.0,
+                    0.10000000149011612,
+                    0.20000000298023224,
+                    0.4000000059604645,
+                    0.5,
+                    0.6000000238418579,
+                    0.699999988079071,
+                    0.800000011920929,
+                    0.8999999761581421,
+                    1.0
+                  ],
+                  "y": [
+                    0.0,
+                    0.14800773561000824,
+                    0.25312426686286926,
+                    0.4238571226596832,
+                    0.5025182962417603,
+                    0.5811246037483215,
+                    0.6626429557800293,
+                    0.7512536644935608,
+                    0.8553630709648132,
+                    1.0
+                  ]
+                }
+              ],
+              "t": [
+                0.0,
+                1.0
+              ],
+              "x": [
+                0,
+                0.09375,
+                0.8958333134651184,
+                1
+              ],
+              "y": [
+                0,
+                -0.1631944477558136,
+                -0.1631944477558136,
+                0
+              ]
+            },
+            "mask": 65634,
+            "zx": 0.5,
+            "zy": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "bit": 17,
+      "hex": "0x00020000",
+      "count": 751,
+      "keys": {
+        "bm": 751,
+        "icon": 751,
+        "mask": 751,
+        "src": 751,
+        "zx": 418,
+        "zy": 418,
+        "color": 246,
+        "coord": 368,
+        "ccc": 4,
+        "scc": 4,
+        "angle": 105,
+        "sx": 6,
+        "sy": 6,
+        "ox": 311,
+        "oy": 311,
+        "fx": 96,
+        "fy": 96,
+        "zcc": 15,
+        "opa": 156
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/bg01.psb.m",
+          "path": "/object/bg/motion/stand/layer/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "bm": 0,
+            "icon": "0000",
+            "mask": 131072,
+            "src": "tex"
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/emu_screen.psb.m",
+          "path": "/object/emu_screen/motion/stand/layer/0/frameList/0/content",
+          "layer_type": 0,
+          "frame_type": 2,
+          "content": {
+            "bm": 0,
+            "icon": "0000",
+            "mask": 131072,
+            "src": "tex"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 18,
+      "hex": "0x00040000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 19,
+      "hex": "0x00080000",
+      "count": 1224,
+      "keys": {
+        "icon": 1224,
+        "mask": 1224,
+        "motion": 1224,
+        "src": 1224,
+        "zx": 158,
+        "zy": 158,
+        "ox": 1,
+        "oy": 1,
+        "coord": 498,
+        "opa": 130,
+        "fx": 16,
+        "fy": 16,
+        "ccc": 85,
+        "angle": 5,
+        "zcc": 6,
+        "color": 12
+      },
+      "examples": [
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/1/frameList/1/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "soft31",
+            "mask": 524288,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg"
+          }
+        },
+        {
+          "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+          "path": "/object/pkg/motion/front/layer/1/frameList/2/content",
+          "layer_type": 3,
+          "frame_type": 2,
+          "content": {
+            "icon": "soft32",
+            "mask": 524288,
+            "motion": {
+              "mask": 0,
+              "timeOffset": 0
+            },
+            "src": "pkg"
+          }
+        }
+      ]
+    },
+    {
+      "bit": 20,
+      "hex": "0x00100000",
+      "count": 36,
+      "keys": {
+        "mask": 36,
+        "prt": 36,
+        "coord": 4,
+        "opa": 9,
+        "zx": 21,
+        "zy": 21
+      },
+      "examples": [
+        {
+          "file": "alldata_original/system/motion/menu_dialog.psb.m",
+          "path": "/object/anime_icon/motion/stand/layer/0/frameList/0/content",
+          "layer_type": 4,
+          "frame_type": 2,
+          "content": {
+            "mask": 1048576,
+            "prt": {
+              "fmax": 6.0,
+              "fmin": 6.0,
+              "mask": 2
+            }
+          }
+        },
+        {
+          "file": "alldata_original/system/motion/menu_dialog.psb.m",
+          "path": "/object/anime_icon/motion/stand/layer/1/frameList/0/content",
+          "layer_type": 4,
+          "frame_type": 2,
+          "content": {
+            "mask": 1048576,
+            "prt": {
+              "fmax": 6.0,
+              "fmin": 6.0,
+              "mask": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "bit": 21,
+      "hex": "0x00200000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 22,
+      "hex": "0x00400000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 23,
+      "hex": "0x00800000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 24,
+      "hex": "0x01000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 25,
+      "hex": "0x02000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 26,
+      "hex": "0x04000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 27,
+      "hex": "0x08000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 28,
+      "hex": "0x10000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 29,
+      "hex": "0x20000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 30,
+      "hex": "0x40000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    },
+    {
+      "bit": 31,
+      "hex": "0x80000000",
+      "count": 0,
+      "keys": {},
+      "examples": []
+    }
+  ],
+  "context_examples": {
+    "content": {
+      "file": "alldata_original/040/motion/bg01.psb.m",
+      "path": "/object/bg/motion/stand/layer/0/frameList/0/content",
+      "layer_type": 0,
+      "frame_type": 2,
+      "content": {
+        "bm": 0,
+        "icon": "0000",
+        "mask": 131072,
+        "src": "tex"
+      }
+    },
+    "motion": {
+      "file": "alldata_original/040/motion/title_jp_titleselect_jp.psb.m",
+      "path": "/object/pkg/motion/front/layer/1/frameList/1/content/motion",
+      "layer_type": 3,
+      "frame_type": 2,
+      "content": {
+        "mask": 0,
+        "timeOffset": 0
+      }
+    },
+    "prt": {
+      "file": "alldata_original/system/motion/menu_dialog.psb.m",
+      "path": "/object/anime_icon/motion/stand/layer/0/frameList/0/content/prt",
+      "layer_type": 4,
+      "frame_type": 2,
+      "content": {
+        "fmax": 6.0,
+        "fmin": 6.0,
+        "mask": 2
+      }
+    },
+    "layerIndexMap": {
+      "file": "alldata_original/system/motion/titleselect_pause.psb.m",
+      "path": "/object/common_parts/motion/pkg/layerIndexMap",
+      "layer_type": null,
+      "frame_type": null,
+      "content": {
+        "mask": 1,
+        "pkg": 2,
+        "soft_frame": 0
+      }
+    }
+  },
+  "field_gate_mismatches": [],
+  "curve_keys_on_noninterpolated_frames": {
+    "ccc": 12
+  },
+  "frame_types": {
+    "2": 3730,
+    "3": 1872
+  }
+}

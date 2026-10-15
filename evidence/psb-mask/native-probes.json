@@ -1,0 +1,1027 @@
+{
+  "binary": "rootfs/usr/game/m2engage",
+  "sha256": "b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792",
+  "bits": [
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 0,
+      "mask": "0x00000001",
+      "reads": [
+        "ox",
+        "oy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 1,
+      "mask": "0x00000002",
+      "reads": [
+        "coord"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 2,
+      "mask": "0x00000004",
+      "reads": [
+        "fx",
+        "fy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 3,
+      "mask": "0x00000008",
+      "reads": [
+        "fx",
+        "fy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 4,
+      "mask": "0x00000010",
+      "reads": [
+        "angle"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 5,
+      "mask": "0x00000020",
+      "reads": [
+        "zx",
+        "zy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 6,
+      "mask": "0x00000040",
+      "reads": [
+        "zx",
+        "zy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 7,
+      "mask": "0x00000080",
+      "reads": [
+        "sx",
+        "sy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 8,
+      "mask": "0x00000100",
+      "reads": [
+        "sx",
+        "sy"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 9,
+      "mask": "0x00000200",
+      "reads": [
+        "color"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 10,
+      "mask": "0x00000400",
+      "reads": [
+        "opa"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 11,
+      "mask": "0x00000800",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 12,
+      "mask": "0x00001000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 13,
+      "mask": "0x00002000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 14,
+      "mask": "0x00004000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 15,
+      "mask": "0x00008000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 16,
+      "mask": "0x00010000",
+      "reads": [
+        "cp"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 17,
+      "mask": "0x00020000",
+      "reads": [
+        "bm"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 18,
+      "mask": "0x00040000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 19,
+      "mask": "0x00080000",
+      "reads": [
+        "motion",
+        "motion/mask",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 20,
+      "mask": "0x00100000",
+      "reads": [
+        "prt",
+        "prt/mask"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 21,
+      "mask": "0x00200000",
+      "reads": [
+        "camera",
+        "camera/fov",
+        "camera/target"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 22,
+      "mask": "0x00400000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 23,
+      "mask": "0x00800000",
+      "reads": [
+        "anchor",
+        "anchor/target"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 24,
+      "mask": "0x01000000",
+      "reads": [
+        "model",
+        "model/timeOffset",
+        "model/loop",
+        "model/dt",
+        "model/dtgt"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 25,
+      "mask": "0x02000000",
+      "reads": [
+        "mesh",
+        "mesh/cc",
+        "mesh/bp"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 26,
+      "mask": "0x04000000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 27,
+      "mask": "0x08000000",
+      "reads": [
+        "feedback",
+        "feedback/timespan"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 28,
+      "mask": "0x10000000",
+      "reads": []
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 12,
+      "bit": 29,
+      "mask": "0x20000000",
+      "reads": [
+        "stc",
+        "stc/wrv",
+        "stc/wcc",
+        "stc/wrt",
+        "stc/wsf"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 30,
+      "mask": "0x40000000",
+      "reads": [
+        "bp"
+      ]
+    },
+    {
+      "frame_type": 2,
+      "layer_type": 2,
+      "bit": 31,
+      "mask": "0x80000000",
+      "reads": []
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 0,
+      "mask": "0x00000001",
+      "reads": [
+        "ox",
+        "oy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 1,
+      "mask": "0x00000002",
+      "reads": [
+        "coord"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 2,
+      "mask": "0x00000004",
+      "reads": [
+        "fx",
+        "fy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 3,
+      "mask": "0x00000008",
+      "reads": [
+        "fx",
+        "fy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 4,
+      "mask": "0x00000010",
+      "reads": [
+        "angle"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 5,
+      "mask": "0x00000020",
+      "reads": [
+        "zx",
+        "zy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 6,
+      "mask": "0x00000040",
+      "reads": [
+        "zx",
+        "zy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 7,
+      "mask": "0x00000080",
+      "reads": [
+        "sx",
+        "sy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 8,
+      "mask": "0x00000100",
+      "reads": [
+        "sx",
+        "sy"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 9,
+      "mask": "0x00000200",
+      "reads": [
+        "color"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 10,
+      "mask": "0x00000400",
+      "reads": [
+        "opa"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 11,
+      "mask": "0x00000800",
+      "reads": [
+        "ccc"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 12,
+      "mask": "0x00001000",
+      "reads": [
+        "acc"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 13,
+      "mask": "0x00002000",
+      "reads": [
+        "zcc"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 14,
+      "mask": "0x00004000",
+      "reads": [
+        "scc"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 15,
+      "mask": "0x00008000",
+      "reads": [
+        "occ"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 16,
+      "mask": "0x00010000",
+      "reads": [
+        "cp"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 17,
+      "mask": "0x00020000",
+      "reads": [
+        "bm"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 18,
+      "mask": "0x00040000",
+      "reads": []
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 19,
+      "mask": "0x00080000",
+      "reads": [
+        "motion",
+        "motion/mask",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 20,
+      "mask": "0x00100000",
+      "reads": [
+        "prt",
+        "prt/mask"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 21,
+      "mask": "0x00200000",
+      "reads": [
+        "camera",
+        "camera/fov",
+        "camera/target"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 22,
+      "mask": "0x00400000",
+      "reads": []
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 23,
+      "mask": "0x00800000",
+      "reads": [
+        "anchor",
+        "anchor/target"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 24,
+      "mask": "0x01000000",
+      "reads": [
+        "model",
+        "model/timeOffset",
+        "model/loop",
+        "model/dt",
+        "model/dtgt"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 25,
+      "mask": "0x02000000",
+      "reads": [
+        "mesh",
+        "mesh/cc",
+        "mesh/bp"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 26,
+      "mask": "0x04000000",
+      "reads": [
+        "ti"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 27,
+      "mask": "0x08000000",
+      "reads": [
+        "feedback",
+        "feedback/timespan"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 28,
+      "mask": "0x10000000",
+      "reads": []
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 12,
+      "bit": 29,
+      "mask": "0x20000000",
+      "reads": [
+        "stc",
+        "stc/wrv",
+        "stc/wcc",
+        "stc/wrt",
+        "stc/wsf"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 30,
+      "mask": "0x40000000",
+      "reads": [
+        "bp"
+      ]
+    },
+    {
+      "frame_type": 3,
+      "layer_type": 2,
+      "bit": 31,
+      "mask": "0x80000000",
+      "reads": []
+    }
+  ],
+  "metadata": [
+    {
+      "frame_type": 0,
+      "mask": 0,
+      "reads": [
+        "[0]/time",
+        "[0]/type"
+      ],
+      "decoded": 1,
+      "interpolates": 0
+    },
+    {
+      "frame_type": 0,
+      "mask": 262144,
+      "reads": [
+        "[0]/time",
+        "[0]/type"
+      ],
+      "decoded": 1,
+      "interpolates": 0
+    },
+    {
+      "frame_type": 2,
+      "mask": 0,
+      "reads": [
+        "[0]/time",
+        "[0]/type",
+        "[0]/content",
+        "[0]/content/mask"
+      ],
+      "decoded": 0,
+      "interpolates": 0
+    },
+    {
+      "frame_type": 2,
+      "mask": 262144,
+      "reads": [
+        "[0]/time",
+        "[0]/type",
+        "[0]/content",
+        "[0]/content/mask",
+        "[0]/content/act"
+      ],
+      "decoded": 0,
+      "interpolates": 0
+    },
+    {
+      "frame_type": 3,
+      "mask": 0,
+      "reads": [
+        "[0]/time",
+        "[0]/type",
+        "[0]/content",
+        "[0]/content/mask"
+      ],
+      "decoded": 0,
+      "interpolates": 1
+    },
+    {
+      "frame_type": 3,
+      "mask": 262144,
+      "reads": [
+        "[0]/time",
+        "[0]/type",
+        "[0]/content",
+        "[0]/content/mask",
+        "[0]/content/act"
+      ],
+      "decoded": 0,
+      "interpolates": 1
+    }
+  ],
+  "nested": [
+    {
+      "group": "motion",
+      "bit": 0,
+      "reads": [
+        "motion/flags",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 1,
+      "reads": [
+        "motion/dt",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 2,
+      "reads": [
+        "motion/docmpl",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 3,
+      "reads": [
+        "motion/dofst",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 4,
+      "reads": [
+        "motion/dtgt",
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 5,
+      "reads": [
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 6,
+      "reads": [
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "motion",
+      "bit": 7,
+      "reads": [
+        "motion/timeOffset"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 0,
+      "reads": [
+        "prt/trigger"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 1,
+      "reads": [
+        "prt/fmin",
+        "prt/fmax"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 2,
+      "reads": [
+        "prt/vmin",
+        "prt/vmax"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 3,
+      "reads": [
+        "prt/amin",
+        "prt/amax"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 4,
+      "reads": [
+        "prt/zmin",
+        "prt/zmax"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 5,
+      "reads": [
+        "prt/range"
+      ]
+    },
+    {
+      "group": "prt",
+      "bit": 6,
+      "reads": []
+    },
+    {
+      "group": "prt",
+      "bit": 7,
+      "reads": []
+    }
+  ],
+  "defaults": [
+    {
+      "layer_type": 0,
+      "mask": 0,
+      "reads": [
+        "src",
+        "icon"
+      ],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "layer_type": 2,
+      "mask": 0,
+      "reads": [],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "layer_type": 3,
+      "mask": 0,
+      "reads": [
+        "src",
+        "icon"
+      ],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "layer_type": 6,
+      "mask": 0,
+      "reads": [
+        "src",
+        "icon"
+      ],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "layer_type": 11,
+      "mask": 0,
+      "reads": [
+        "src",
+        "icon"
+      ],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "layer_type": 12,
+      "mask": 0,
+      "reads": [
+        "src",
+        "icon"
+      ],
+      "bm": 16,
+      "bp": 0.0,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "colors": [
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff",
+        "0x808080ff"
+      ],
+      "opa": 255,
+      "coord": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flips": [
+        0,
+        0
+      ],
+      "angle": 0.0,
+      "zoom": [
+        1.0,
+        1.0
+      ],
+      "skew": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "limitations": "Synthetic PSB accessors/conversions and allocator stubs; original gate, store and default instructions. No actual animation or GPU rendering."
+}

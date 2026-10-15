@@ -43,7 +43,7 @@
 
   <main>
     <h1>Format PSB</h1>
-    <p class="page-desc">Animation blend modes, RGB gain, defaults and native evidence from the PC Engine Mini engine.</p>
+    <p class="page-desc">Animation blend modes, presence masks, interpolation, defaults and native evidence from the PC Engine Mini engine.</p>
     <p>PSB stores structured resources such as configuration, texture atlases and animation timelines.
       See <a href="mzs-format.html#psb-binary-format">MZS / PSB Format</a> for the binary container and
       encryption wrapper, and <a href="cover-motion.html">Cover Motion PSBs</a> for the animation tree.</p>
@@ -96,6 +96,118 @@ tmp.rgb += tmp.rgb;</code></pre>
       Without the bm bit, the reader uses 16. Without an explicit color it resolves the neutral
       tint for that frame; a previous frame's special blend or explicit tint is not its default.</p>
 
+    <h2 id="content-mask">Animation content: mask</h2>
+    <p><code>content.mask</code> is a 32-bit field-presence word. The reader tests
+      <code>(mask &amp; gate) != 0</code> before reading each property. A disabled field is ignored
+      even when its key is present. Every content frame starts from native defaults; omitted
+      properties do not carry over from the preceding content frame.</p>
+    <table>
+      <tr><th>Bit(s)</th><th>Gate</th><th>Fields read</th><th>Condition</th></tr>
+      <tr><td>0</td><td><code>0x00000001</code></td><td><code>ox</code> and <code>oy</code></td><td></td></tr>
+      <tr><td>1</td><td><code>0x00000002</code></td><td><code>coord[0..2]</code></td><td></td></tr>
+      <tr><td>2, 3</td><td><code>0x0000000c</code></td><td><code>fx</code> and <code>fy</code></td><td>Either bit reads both</td></tr>
+      <tr><td>4</td><td><code>0x00000010</code></td><td><code>angle</code></td><td></td></tr>
+      <tr><td>5, 6</td><td><code>0x00000060</code></td><td><code>zx</code> and <code>zy</code></td><td>Either bit reads both</td></tr>
+      <tr><td>7, 8</td><td><code>0x00000180</code></td><td><code>sx</code> and <code>sy</code></td><td>Either bit reads both</td></tr>
+      <tr><td>9</td><td><code>0x00000200</code></td><td><code>color</code>: one RGBA integer or four corners</td><td></td></tr>
+      <tr><td>10</td><td><code>0x00000400</code></td><td><code>opa</code>, converted to the low byte</td><td></td></tr>
+      <tr><td>11</td><td><code>0x00000800</code></td><td><code>ccc</code>: coordinate curve</td><td>Keyframe type 3</td></tr>
+      <tr><td>12</td><td><code>0x00001000</code></td><td><code>acc</code>: angle curve</td><td>Keyframe type 3</td></tr>
+      <tr><td>13</td><td><code>0x00002000</code></td><td><code>zcc</code>: scale curve</td><td>Keyframe type 3</td></tr>
+      <tr><td>14</td><td><code>0x00004000</code></td><td><code>scc</code>: shear curve</td><td>Keyframe type 3</td></tr>
+      <tr><td>15</td><td><code>0x00008000</code></td><td><code>occ</code>: RGBA color curve</td><td>Keyframe type 3</td></tr>
+      <tr><td>16</td><td><code>0x00010000</code></td><td><code>cp</code>: coordinate path</td><td></td></tr>
+      <tr><td>17</td><td><code>0x00020000</code></td><td><code>bm</code></td><td></td></tr>
+      <tr><td>18</td><td><code>0x00040000</code></td><td><code>act</code>: action string</td><td>Read during keyframe preparation</td></tr>
+      <tr><td>19</td><td><code>0x00080000</code></td><td><code>motion</code> object</td><td>Nested mask below</td></tr>
+      <tr><td>20</td><td><code>0x00100000</code></td><td><code>prt</code> object</td><td>Nested mask below</td></tr>
+      <tr><td>21</td><td><code>0x00200000</code></td><td><code>camera.fov</code>, <code>camera.target</code></td><td></td></tr>
+      <tr><td>23</td><td><code>0x00800000</code></td><td><code>anchor.target</code></td><td></td></tr>
+      <tr><td>24</td><td><code>0x01000000</code></td><td><code>model.timeOffset</code>, <code>loop</code>, <code>dt</code>, <code>dtgt</code></td><td></td></tr>
+      <tr><td>25</td><td><code>0x02000000</code></td><td><code>mesh.cc</code>, <code>mesh.bp</code></td><td></td></tr>
+      <tr><td>26</td><td><code>0x04000000</code></td><td><code>ti</code>: interpolation time step</td><td>Keyframe type 3</td></tr>
+      <tr><td>27</td><td><code>0x08000000</code></td><td><code>feedback.timespan</code></td><td></td></tr>
+      <tr><td>29</td><td><code>0x20000000</code></td><td><code>stc.wrv</code>, <code>wcc</code>, <code>wrt</code>, <code>wsf</code></td><td>Layer type 12</td></tr>
+      <tr><td>30</td><td><code>0x40000000</code></td><td><code>bp</code>, floating point</td><td></td></tr>
+    </table>
+    <p>No property reads were found for bits 22, 28 or 31 in these native routines.
+      They are absent from the examined corpus; this does not assign them a universal meaning
+      across other M2 engine versions. The table establishes field selection, not the complete
+      visual semantics of the uncommon <code>bp</code>, <code>stc</code>, model or feedback effects.</p>
+    <p>The three paired gates are genuine groups: <code>mask=0x20</code> reads both
+      <code>zx</code> and <code>zy</code>. Stock files set paired bits together
+      (<code>0x0c</code>, <code>0x60</code>, <code>0x180</code>); writers should supply both keys.
+      <code>src</code> and <code>icon</code> have no presence bit and are read independently
+      for layer types 0, 3, 6, 11 and 12.</p>
+    <p>Disabled-field defaults are origins, coordinates, flips, angle and shear at zero;
+      scales at one; <code>opa=255</code>, <code>bm=16</code>, <code>bp=0</code> and
+      <code>ti=0</code>. Color uses the neutral tint described above. All 5,602 stock contents
+      contain a mask. These defaults describe disabled bits; they do not define malformed
+      files that omit a required key while enabling its bit.</p>
+
+    <h3 id="mask-interpolation">Curves, occ and keyframe types</h3>
+    <p>Only <code>frameList[i].type == 3</code> interpolates toward the following content frame
+      and reads the five curve references or <code>ti</code>. Type 2 holds its values.
+      This is the <em>keyframe</em> type, independent of the layer type. Twelve stock type-2
+      contents have a <code>ccc</code> key and bit, which the native reader ignores.</p>
+    <p><strong><code>occ</code> eases the four RGBA corner colors.</strong> The separate
+      <code>opa</code> property stays linear, rounded to an integer. Color interpolation uses
+      the native 8-bit weight <code>trunc(easedT * 256)</code>; an endpoint without explicit
+      color contributes its own default tint. <code>ccc</code> eases coordinates, not
+      <code>motion.timeOffset</code>.</p>
+    <pre><code>elapsed = currentTime - previousKeyTime;
+if (ti != 0) elapsed = ti * trunc(elapsed / ti);
+t = elapsed / (nextKeyTime - previousKeyTime);</code></pre>
+    <p>The quantized time factor is passed to each enabled curve. Without a curve the
+      corresponding interpolated property uses the linear factor.</p>
+
+    <h3 id="nested-motion-mask">Nested motion.mask</h3>
+    <p>The outer <code>content.mask &amp; 0x80000</code> enables the object. Its own
+      <code>motion.mask</code> then selects these fields:</p>
+    <table>
+      <tr><th>Bit</th><th>Gate</th><th>Field</th><th>Default</th></tr>
+      <tr><td>0</td><td><code>0x01</code></td><td><code>flags</code>, integer</td><td>0</td></tr>
+      <tr><td>1</td><td><code>0x02</code></td><td><code>dt</code>, integer</td><td>1</td></tr>
+      <tr><td>2</td><td><code>0x04</code></td><td><code>docmpl</code>, boolean</td><td>false</td></tr>
+      <tr><td>3</td><td><code>0x08</code></td><td><code>dofst</code>, floating point</td><td>0</td></tr>
+      <tr><td>4</td><td><code>0x10</code></td><td><code>dtgt</code>, string</td><td>empty</td></tr>
+    </table>
+    <p><strong><code>timeOffset</code> has no bit in the nested mask.</strong> It is read whenever
+      the outer motion bit is enabled. All 1,224 motion objects in the corpus use
+      <code>motion.mask=0</code> while containing a valid <code>timeOffset</code>.</p>
+
+    <h3 id="nested-particle-mask">Nested prt.mask</h3>
+    <p>The outer <code>content.mask &amp; 0x100000</code> enables the particle object.
+      Its nested mask selects parameter groups; bits 0 and 1 do not select X/Y position axes.</p>
+    <table>
+      <tr><th>Bit</th><th>Gate</th><th>Fields</th><th>Default</th></tr>
+      <tr><td>0</td><td><code>0x01</code></td><td><code>trigger</code></td><td>0</td></tr>
+      <tr><td>1</td><td><code>0x02</code></td><td><code>fmin</code>, <code>fmax</code></td><td>10, 10</td></tr>
+      <tr><td>2</td><td><code>0x04</code></td><td><code>vmin</code>, <code>vmax</code></td><td>0, 0</td></tr>
+      <tr><td>3</td><td><code>0x08</code></td><td><code>amin</code>, <code>amax</code></td><td>0, 0</td></tr>
+      <tr><td>4</td><td><code>0x10</code></td><td><code>zmin</code>, <code>zmax</code></td><td>1, 1</td></tr>
+      <tr><td>5</td><td><code>0x20</code></td><td><code>range</code></td><td>0</td></tr>
+    </table>
+    <p>The 36 particle objects use mask 2 (8 objects), 3 (13 objects), or
+      27 / <code>0x1b</code> (15 objects). In particular, 27 selects trigger, frame interval,
+      angle and scale groups. A disabled group retains its native defaults.</p>
+    <p><code>layer.inheritMask</code> separately controls parent-property inheritance.
+      A key named <code>mask</code> inside <code>layerIndexMap</code> can simply be a layer name
+      mapped to an index. Neither is a <code>content.mask</code> value.</p>
+
+    <h3 id="mask-port">m2engage-mac implementation</h3>
+    <p>The 2D port applies these presence gates to its supported animation fields, resets
+      defaults per content, restricts curves and <code>ti</code> to type 3, and applies
+      <code>occ</code> to RGBA independently of opacity. Particle parameters are decoded through
+      both masks; spatial randomization no longer interprets <code>prt.mask</code> as axes.
+      Prepared motion cache <strong>version 4</strong> rejects older interpretations and falls
+      back to the source JSON; regenerate caches with the updated resource preparer.</p>
+    <p>Additional motion controls and particle <code>vmin</code>/<code>vmax</code>/<code>range</code>
+      are decoded and retained. Their native rendering/physics effects, action dispatch,
+      camera/anchor/model/mesh/feedback effects and <code>stc</code>/<code>bp</code> effects
+      remain outside the port's supported 2D behavior. Recognizing a native presence bit
+      does not imply those effects are implemented.</p>
+
     <h2 id="equations">Composition equations and alpha</h2>
     <p>Let <code>C = texture.rgb &times; vertexColor.rgb &times; gain</code>, <code>A</code>
       be the final source alpha after texture, tint and opacity, and <code>D</code> be destination RGB.
@@ -141,6 +253,21 @@ Screen:   D + (1-D)*A*C</code></pre>
       <a href="evidence/psb-bm/corpus.json">stock corpus examples</a> and
       <a href="evidence/psb-bm/analysis.txt">detailed investigation</a>.
       Earlier local viewer documentation labeling 17 as Multiply was incorrect.</p>
+    <h3>Presence-mask evidence</h3>
+    <p>The mask investigation executes 92 synthetic native-reader cases: 64 isolated content-bit
+      routes (all 32 bits for keyframe types 2 and 3), six metadata cases, 16 nested-mask routes
+      and six zero-mask/default cases. PSB accessors, conversions and allocations are simulated;
+      branch selection and default stores come from the original ARM instructions.</p>
+    <p>A scan of 24 distinct stock PSBs finds 5,602 contents, 117 mask values and 19 used bits,
+      with no key/presence-gate mismatch. Native entry points are <code>0x140334</code>
+      (metadata), <code>0x14f47c</code> (content) and <code>0x1579c0</code> (interpolation).
+      This is the PC Engine Mini reader's schema, not a universal PSB animation standard.</p>
+    <p>Download the <a href="evidence/psb-mask/native-probes.json">mask probe results</a>,
+      <a href="evidence/psb-mask/corpus.json">mask corpus</a>,
+      <a href="evidence/psb-mask/content-reader.asm">content reader disassembly</a>,
+      <a href="evidence/psb-mask/frame-metadata.asm">metadata disassembly</a>,
+      <a href="evidence/psb-mask/interpolation.asm">interpolation disassembly</a> and
+      <a href="evidence/psb-mask/analysis.txt">full investigation</a>.</p>
   </main>
 </body>
 </html>

@@ -1,0 +1,231 @@
+Spécification de mask dans les PSB d'animation du PC Engine Mini
+Analyse du 15 octobre 2026
+
+Périmètre et preuve
+
+Cette spécification décrit le lecteur du binaire ARM original m2engage, et
+non une convention déduite uniquement de la présence des clés dans le JSON.
+Elle est propre à cette version du moteur : les autres versions d'E-mote
+ou d'autres catégories de PSB peuvent employer un schéma différent.
+
+Binaire : rootfs/usr/game/m2engage
+SHA-256 : b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792
+Initialisation / métadonnées d'image clé : 0x140334..0x1404cc.
+Lecture différée du contenu : 0x14f47c..0x150288.
+Interpolation des propriétés : 0x1579c0..0x158270.
+Les adresses sont des adresses virtuelles dans l'ELF, pas des offsets de fichier.
+
+1. Contrat général de content.mask
+
+Emplacement : object.<objet>.motion.<animation>.layer[...].frameList[i].content.mask
+(avec éventuellement des niveaux children entre layer et frameList).
+
+mask est un mot de 32 bits qui autorise la lecture de propriétés du contenu.
+Le moteur en conserve la valeur dans frame + 0x0c. Pour une propriété dont
+le bit est désactivé, la clé présente dans le PSB reste ignorée. Le masque
+n'exprime ni une liste des seules valeurs différentes de l'image précédente,
+ni une demande de conserver ces valeurs précédentes : chaque contenu est
+décodé dans un état remis à zéro, puis complété avec ses défauts natifs.
+Le lecteur de contenu peut ensuite être mis en cache ; ce cache ne transforme
+pas le masque en une mise à jour partielle des propriétés de l'image précédente.
+
+Le masque est présent dans les 5 602 contenus du corpus. Aucun comportement
+de fichier mal formé, avec mask absent ou une clé manquante malgré son bit
+activé, n'est défini ici. Les défauts ci-dessous correspondent aux bits
+DÉSACTIVÉS, pas à une garantie de tolérance à ces incohérences.
+
+2. Table complète des bits de content.mask
+
+Bit(s)  Valeur(s) hexadécimale(s)       Propriété(s) effectivement lue(s)
+ 0      0x00000001                    ox ET oy, nombres flottants
+ 1      0x00000002                    coord[0], coord[1], coord[2], flottants
+ 2,3    0x00000004 / 0x00000008       fx ET fy, convertis en booléens
+ 4      0x00000010                    angle, flottant
+ 5,6    0x00000020 / 0x00000040       zx ET zy, flottants
+ 7,8    0x00000080 / 0x00000100       sx ET sy, flottants
+ 9      0x00000200                    color, entier RGBA ou tableau de 4 entiers
+10      0x00000400                    opa, entier réduit à son octet faible
+11      0x00000800                    ccc : courbe de coordonnées (*)
+12      0x00001000                    acc : courbe d'angle (*)
+13      0x00002000                    zcc : courbe d'échelle (*)
+14      0x00004000                    scc : courbe de cisaillement (*)
+15      0x00008000                    occ : courbe de couleur (*)
+16      0x00010000                    cp : chemin de coordonnées
+17      0x00020000                    bm, entier
+18      0x00040000                    act, chaîne d'action (**)
+19      0x00080000                    motion, objet à masque propre
+20      0x00100000                    prt, objet à masque propre
+21      0x00200000                    camera.fov et camera.target
+22      0x00400000                    aucune lecture identifiée dans ces lecteurs
+23      0x00800000                    anchor.target
+24      0x01000000                    model.timeOffset, loop, dt, dtgt
+25      0x02000000                    mesh.cc et mesh.bp
+26      0x04000000                    ti, entier : pas temporel d'interpolation (*)
+27      0x08000000                    feedback.timespan
+28      0x10000000                    aucune lecture identifiée dans ces lecteurs
+29      0x20000000                    stc.wrv, wcc, wrt, wsf ; layer.type == 12 (***)
+30      0x40000000                    bp, flottant
+31      0x80000000                    aucune lecture identifiée dans ces lecteurs
+
+(*) Le moteur ne lit ces champs que si frameList[i].type == 3. Il s'agit du
+type de l'IMAGE CLÉ, distinct du type du calque. Pour une image clé de type 2,
+ces bits ne provoquent aucune lecture, même si la clé est présente. Les
+courbes référencées sont stockées dans frame + 104 (ccc), +120 (occ), +136
+(acc), +152 (zcc), +168 (scc). Leur présence ne suffit pas à rendre une image
+clé de type 2 interpolée. Le corpus contient précisément 12 ccc sur de telles
+images clés ; leur lecture est ignorée par le moteur d'origine.
+
+occ module l'interpolation des couleurs RGBA à 0x157d48..0x157d9c et
+0x158164..0x1581c2. opa est interpolée séparément, de façon linéaire, à
+0x157cca..0x157cf2. occ n'est donc pas la courbe de la propriété opa.
+
+ti quantifie le temps écoulé avant le calcul du facteur d'interpolation :
+elapsed = ti * trunc(elapsed / ti), si ti != 0. Le résultat est ensuite
+divisé par la durée entre les deux images clés (0x157b68..0x157ba0).
+
+(**) act est lu pendant la préparation de l'image clé, avant le lecteur
+différé : 0x140458..0x1404a0. Son absence dans le corpus ne signifie donc
+pas que le bit 18 est inutilisé. Les parcours d'animation testent ensuite
+ce bit pour transmettre la chaîne d'action, par exemple à 0x1507be.
+
+(***) stc exige à la fois le bit 29 et un calque layer.type == 12. Le bit
+seul n'active pas ce lecteur sur les autres types de calques. Le masque
+désactivé désactive aussi le sous-état stc pour ce type de calque.
+
+Les bits 22, 28 et 31 ne doivent pas recevoir de nom de propriété inventé.
+Ils sont sans effet de lecture dans les deux routines examinées, et absents
+du corpus. Cela ne prouve pas qu'ils soient réservés dans tous les moteurs M2.
+
+Les tables établissent les associations avec les clés même pour les extensions
+absentes du corpus. Elles ne donnent pas une définition visuelle complète de
+bp, stc, model ou feedback : celle-ci nécessite une étude de leurs consommateurs.
+
+3. Groupes et exceptions importants
+
+Les tests sont réellement groupés : (mask & 0x0c) lit LES DEUX fx/fy,
+(mask & 0x60) lit LES DEUX zx/zy et (mask & 0x180) lit LES DEUX sx/sy.
+Chaque bit isolé de chaque paire a été testé. Il serait incorrect de lire
+uniquement zx pour 0x20 et uniquement zy pour 0x40 dans un lecteur compatible.
+Les fichiers d'origine activent toujours ces paires ensemble : 0x0c, 0x60,
+0x180. Un écrivain peut reproduire cette forme canonique et fournir les deux
+clés du groupe. Le bit 0 unique lit également les deux origines ox et oy.
+
+src et icon n'ont pas de bit content.mask dans ce lecteur. Ils sont lus
+indépendamment du masque pour layer.type dans {0, 3, 6, 11, 12}, par le test
+du mot 0x1849 à 0x14f4ea. mask == 0 ne signifie donc pas « aucun contenu ».
+
+Défauts du contenu lorsque les bits correspondants sont désactivés :
+  ox, oy             0, 0
+  coord              [0, 0, 0]
+  fx, fy             false, false
+  angle              0
+  zx, zy             1, 1
+  sx, sy             0, 0
+  opa                255
+  bm                 16
+  bp                 0
+  ti                 0, sans quantification temporelle
+  courbes            aucune courbe spécifique ; interpolation linéaire si type 3
+  color              0x808080ff aux quatre sommets avec le bm par défaut 16
+
+Si bm est explicitement lu et (bm & 0xf0) == 0, color désactivé donne
+0xffffffff. Une couleur explicite activée par 0x200 est conservée, y compris
+avec bm == 0. Voir ../psb-bm/analysis.txt pour le gain RGB x2 et les modes.
+
+Exemple : position + échelle + bm + couleur explicites :
+
+  mask = 0x00000002 | 0x00000060 | 0x00020000 | 0x00000200
+       = 0x00020262 = 131682
+
+  { "mask": 131682, "coord": [100, 50, 0], "zx": 1, "zy": 1,
+    "bm": 17, "color": 2155905279, "src": "tex", "icon": "0000" }
+
+color = 2155905279 = 0x808080ff. Le nom de source et l'icône doivent bien
+sûr exister dans le PSB ; le calcul de mask ne valide pas leurs références.
+
+4. content.motion.mask, un second masque indépendant
+
+L'objet motion est lu si content.mask & 0x80000. Son masque interne commande :
+
+  Bit  Hex    Clé lue       Type / défaut du sous-lecteur
+   0   0x01   flags         entier, défaut 0
+   1   0x02   dt            entier, défaut 1
+   2   0x04   docmpl        booléen, défaut false
+   3   0x08   dofst         flottant, défaut 0
+   4   0x10   dtgt          chaîne, défaut chaîne vide
+
+timeOffset est lu SANS bit du masque interne, dès que le bit externe motion
+est activé. Les 1 224 objets motion du corpus ont tous mask == 0 et
+contiennent néanmoins timeOffset. Ignorer tout l'objet sous prétexte que son
+masque interne vaut zéro perdrait donc une propriété effectivement lue.
+Adresses : 0x14fa0e..0x14faa0, branches 0x14fee6..0x14ff8e.
+
+5. content.prt.mask, un troisième masque indépendant
+
+L'objet prt est lu si content.mask & 0x100000. Son masque interne commande :
+
+  Bit  Hex    Clé(s) lue(s)       Défaut du sous-lecteur
+   0   0x01   trigger            entier 0
+   1   0x02   fmin et fmax       flottants 10, 10
+   2   0x04   vmin et vmax       flottants 0, 0
+   3   0x08   amin et amax       flottants 0, 0
+   4   0x10   zmin et zmax       flottants 1, 1
+   5   0x20   range              flottant 0
+
+Ces bits sélectionnent les champs des paramètres de particules. Ils ne
+décrivent pas directement des axes X/Y de position aléatoire. Les masques
+observés sont 2 (8 objets), 3 (13 objets) et 27 / 0x1b (15 objets), soit
+36 objets au total. Pour 27, les groupes actifs sont trigger, fmin/fmax,
+amin/amax, zmin/zmax. Adresses : 0x14f8f0..0x14f988 et branches associées.
+
+6. Autres emplois à distinguer
+
+layer.inheritMask est le masque d'héritage depuis le calque parent. Il est
+distinct du masque de présence de l'image clé et n'est pas traité par ces
+deux lecteurs. La présence de mask comme nom de calque dans layerIndexMap
+ne crée pas davantage un masque de bits : cette table associe des noms de
+calques à des indices. Les 40 entrées layerIndexMap.mask trouvées dans le
+corpus relèvent de ce dernier cas.
+
+7. Vérification et limites
+
+  python3 re/psb_mask_probe.py
+  python3 re/psb_mask_probe.py --corpus
+
+Le premier probe exécute les branchements ARM originaux avec des accesseurs
+PSB et des allocations synthétiques :
+  - 64 parcours : chacun des 32 bits isolé, pour les types d'image clé 2 et 3 ;
+  - 6 cas de métadonnées, dont la lecture conditionnelle de act ;
+  - 16 parcours des masques internes motion et prt ;
+  - 6 cas de masque zéro : défauts et src/icon indépendants du masque.
+
+Les instructions VSTR manquantes de l'émulateur ESIL sont modélisées comme
+des copies 32 bits de registre flottant vers la mémoire. Le prologue et
+l'épilogue VFP du lecteur de contenu sont contournés ; les branchements et
+les initialisations du corps étudié restent ceux de l'ELF. Les conversions
+de valeurs, le décodage des courbes et les allocations sont des stubs. Ce
+probe vérifie l'aiguillage du lecteur ; il n'exécute pas une animation sur GPU.
+
+Le second lit 24 PSB distincts du répertoire alldata_original (les doublons
+déjà décompressés sont exclus). Il relève 5 602 contenus, 117 valeurs de
+content.mask et 19 bits distincts employés. Pour chaque groupe observé,
+la présence de ses clés correspond exactement aux bits qui en autorisent
+la lecture : aucune incohérence de présence. La restriction type 3 reste
+nécessaire, même pour les 12 ccc présents sur des images de type 2.
+
+Les fichiers corpus.json et native-probes.json conservent les résultats.
+frame-metadata.asm, content-reader.asm et interpolation.asm permettent de
+vérifier les adresses et les associations. L'empreinte du binaire est
+contrôlée avant et après les probes ; il n'est jamais modifié.
+
+8. Écarts de m2engage-mac constatés avant le correctif du 15 octobre 2026
+
+Au moment de cette analyse, bm/color respectaient déjà les bits 17 et 9,
+mais le port lisait plusieurs autres champs à partir de leur seule présence
+JSON, pouvait interpoler une image clé de type 2 à cause de ccc, associait
+occ à opa et utilisait prt.mask comme sélection des axes de position aléatoire.
+Le correctif qui accompagne la publication de cette spécification applique
+les portes de lecture aux champs 2D pris en charge, restaure les défauts par
+contenu, corrige occ et les masques imbriqués, et passe les caches au format v4.
+Les effets natifs supplémentaires non pris en charge restent explicitement
+distingués dans la documentation du port et sur la page Format PSB.

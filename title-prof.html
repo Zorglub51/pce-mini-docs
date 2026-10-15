@@ -42,578 +42,433 @@
 
   <main>
     <h1>title_prof <span class="tag">config</span></h1>
-    <p class="page-desc">
-      Per-game ROM and emulator configuration. Maps each game ID to its ROM file,
-      emulator architecture, country settings, and audio parameters.
-      Also holds global controller, replay, and wallpaper settings.
-    </p>
+    <p class="page-desc">ROM selection, emulator options, input defaults and shared session settings.
+      This reference separates values read by the stock scripts from effects actually implemented by the original PC Engine cores.</p>
 
-    <h2>File Location</h2>
-    <pre><code>040/config/title_prof.psb.m</code></pre>
-    <p>Original size: ~5,092 bytes (encrypted+compressed). Loaded by m2engage during <strong>native C++ init</strong>, before any Squirrel scripts run.</p>
-
-    <div class="box box-danger">
-      <strong>Crashes m2engage if malformed</strong>
-      Unlike title_mode_top (loaded by scripts with lenient error handling), title_prof is parsed by the
-      native C++ code during early initialization. A malformed file causes an immediate crash
-      with <strong>no SQ output and no sound</strong>. The native parser is strict about field names &mdash;
-      using incorrect names (even for optional-looking fields) will crash.
-    </div>
-
-    <!-- ===== TOP-LEVEL STRUCTURE ===== -->
-    <h2>Top-Level Structure</h2>
-    <p>All data must be wrapped in a <code>root</code> object containing exactly 7 sections:</p>
-
-    <div class="diagram">
-<span class="hl-blue">title_prof.psb structure</span>
-
-root
- |- <span class="highlight">controller</span>      gamepad button mapping &amp; rapid fire config
- |- <span class="highlight">game_versions</span>   maps GAMEID -> [index, dlc_flag, menu_string]
- |- <span class="highlight">m2epi</span>           emulator settings (global + per-game)
- |   |- overdrive     global CPU speed (int)
- |   |- preamp        global audio preamp (float)
- |   |- sram_support  global SRAM flag (bool)
- |   \- <span class="hl-green">version</span>      per-game configs keyed by GAMEID
- |       \- {GAMEID}  {arch, country, rom, preamp, ...}
- |- <span class="highlight">player_num</span>      single integer (max player slots)
- |- <span class="highlight">replay</span>          replay recording settings
- |- <span class="highlight">title</span>           {dev_name: "PceMini"}
- \- <span class="highlight">wallpaper</span>       {datafile: pattern, max_num: count}
-    </div>
-
-    <div class="box box-warning">
-      <strong>The <code>root</code> wrapper is required</strong>
-      The native parser expects exactly this nesting. Omitting <code>root</code> or
-      changing the top-level structure causes a crash.
-    </div>
-
-    <!-- ===== LOADING & CACHING ===== -->
-    <h2>Loading &amp; Caching</h2>
-    <p>
-      The file is loaded from Squirrel via <code>game_content.nut</code>:
-    </p>
-    <pre><code>// game_content.nut, line ~975
-function _get_title_prof(_dev_id = 0) {
-    local path      = conv_path("config/title_prof.psb", _dev_id);
-    local spec_path = conv_path("config/title_prof_specdepend.psb", _dev_id);
-    local title_prof      = ::util_load_config(path).root;
-    local title_prof_spec = ::util_load_config(spec_path).root;
-    title_prof = ::merge_tables(title_prof_spec, title_prof);
-    return title_prof;
-}</code></pre>
-    <p>
-      Note: the <code>.root</code> is unwrapped immediately. All subsequent script access
-      uses fields directly (e.g., <code>title_prof.player_num</code>, not <code>title_prof.root.player_num</code>).
-      The result is cached in <code>s_current_title_prof</code> and accessed via <code>get_current_title_prof()</code>.
-    </p>
-    <p>
-      The <code>title_prof_specdepend.psb</code> file is merged on top, allowing
-      platform-specific overrides without modifying the base config.
-    </p>
-
-    <!-- ===== SECTIONS ===== -->
-    <h2>Sections in Detail</h2>
-
-    <!-- --- m2epi --- -->
-    <h3>m2epi <span class="tag">required</span></h3>
-    <p>
-      The core emulator configuration. Contains global defaults and a <code>version</code>
-      dict with per-game overrides.
-    </p>
-    <pre><code>"m2epi": {
-  "overdrive": 0,
-  "preamp": 0.0,
-  "sram_support": false,
-  "version": {
-    "GAME000": {
-      "arch": "tg16",
-      "country": "jp",
-      "preamp": 4.08,
-      "rom": "roms/KungFu_J.pce",
-      "tg16pad_type": 0
-    },
-    "GAME004": {
-      "arch": "tg16cd",
-      "country": "jp",
-      "preamp": -2.91,
-      "rom": "roms/YsBookI_II.pcd"
-    },
-    "GAME007": {
-      "arch": "sgx",
-      "country": "jp",
-      "preamp": 0.64,
-      "rom": "roms/Daimakaimura_J.pce"
-    },
-    "GAME014": {
-      "arch": "tg16cd",
-      "country": "jp",
-      "preamp": -5.71,
-      "rom": "roms/Sapphire.pcd",
-      "tg16_hblank": 100,
-      "tg16_option": 0,
-      "tg16cd_systemcard": "arcade",
-      "tg16pad_type": 5
-    }
-  }
-}</code></pre>
-
-    <h4>Global m2epi Fields</h4>
-    <table>
-      <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
-      <tr>
-        <td><code>overdrive</code></td><td>int</td><td>0</td>
-        <td>CPU speed multiplier. Accessed via <code>_init_emulator_get_option_by_regionTag()</code></td>
-      </tr>
-      <tr>
-        <td><code>preamp</code></td><td>float</td><td>0.0</td>
-        <td>Global audio preamp in dB (per-game <code>preamp</code> overrides this)</td>
-      </tr>
-      <tr>
-        <td><code>sram_support</code></td><td>bool</td><td>false</td>
-        <td>Global SRAM support flag</td>
-      </tr>
-    </table>
-
-    <h4>Per-Game version Entry Fields</h4>
-    <table>
-      <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
-      <tr>
-        <td><code>arch</code></td><td>string</td><td>Yes</td>
-        <td>Emulator architecture: <code>"tg16"</code>, <code>"tg16cd"</code>, <code>"sgx"</code></td>
-      </tr>
-      <tr>
-        <td><code>country</code></td><td>string</td><td>Yes</td>
-        <td>Region: <code>"jp"</code> or <code>"us"</code></td>
-      </tr>
-      <tr>
-        <td><code>rom</code></td><td>string</td><td>Yes</td>
-        <td>ROM filename (relative path, e.g., <code>"roms/KungFu_J.pce"</code>)</td>
-      </tr>
-      <tr>
-        <td><code>preamp</code></td><td>float</td><td>Yes</td>
-        <td>Per-game audio preamp in dB (overrides global)</td>
-      </tr>
-      <tr>
-        <td><code>tg16cd_systemcard</code></td><td>string</td><td>CD only</td>
-        <td>System card type: <code>"super"</code> or <code>"arcade"</code></td>
-      </tr>
-      <tr>
-        <td><code>tg16_hblank</code></td><td>int</td><td>No</td>
-        <td>H-blank timing override: <code>70</code> or <code>100</code></td>
-      </tr>
-      <tr>
-        <td><code>tg16pad_type</code></td><td>int</td><td>No</td>
-        <td>Controller type (0 = 2-button, 5 = 6-button)</td>
-      </tr>
-      <tr>
-        <td><code>tg16_option</code></td><td>int</td><td>No</td>
-        <td>Additional TG16 emulator option flags</td>
-      </tr>
-    </table>
-
-    <p>The scripts use a two-level lookup pattern: check global m2epi first, then override
-    with version-specific values if present:</p>
-    <pre><code>// emulator.nut — helper pattern
-function _init_emulator_get_option_by_regionTag(_m2epi, _regionTag, _key, _default) {
-    // First check version-specific
-    if (_key in _m2epi.version[_regionTag])
-        return _m2epi.version[_regionTag][_key];
-    // Then check global
-    if (_key in _m2epi)
-        return _m2epi[_key];
-    return _default;
-}</code></pre>
-
-    <h4>Additional Optional m2epi Fields</h4>
-    <p>These are checked with <code>"key" in obj</code> before access and are safe to omit:</p>
-    <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-      <tr><td><code>brightness</code></td><td>float</td><td>Screen brightness (default 1.0)</td></tr>
-      <tr><td><code>sram_hot_swap</code></td><td>bool</td><td>SRAM hotswap support</td></tr>
-      <tr><td><code>sram_crypted</code></td><td>bool</td><td>SRAM encryption flag</td></tr>
-      <tr><td><code>sram_need_save_frame</code></td><td>int</td><td>Frames before SRAM save</td></tr>
-      <tr><td><code>subst_screen_zoom_x</code></td><td>float</td><td>Screen X zoom multiplier</td></tr>
-      <tr><td><code>screen_setting_state</code></td><td>table</td><td>Per-region screen state file paths</td></tr>
-      <tr><td><code>stringGlobal</code></td><td>table</td><td>Global string configuration</td></tr>
-    </table>
-
-    <!-- --- game_versions --- -->
-    <h3>game_versions <span class="tag">required</span></h3>
-    <p>Maps each game ID to an internal version index, DLC flag, and menu text string:</p>
-    <pre><code>"game_versions": {
-  "GAME000": [0,  0, "MenuItemText__TITLE_GAME_VERSION_000"],
-  "GAME001": [1,  0, "MenuItemText__TITLE_GAME_VERSION_001"],
-  "GAME002": [2,  0, "MenuItemText__TITLE_GAME_VERSION_002"],
-  "GAME002E": [52, 0, "MenuItemText__TITLE_GAME_VERSION_053"],
-  ...
-}</code></pre>
-
-    <p>Format: <code>[index, dlc_flag, menu_string_key]</code></p>
-    <table>
-      <tr><th>Element</th><th>Type</th><th>Description</th></tr>
-      <tr><td><code>[0]</code> index</td><td>int</td><td>Sequential game index. Base games: 0&ndash;52. Variant games: 52+.</td></tr>
-      <tr><td><code>[1]</code> dlc_flag</td><td>int</td><td>Always 0 for PCE Mini (DLC support unused)</td></tr>
-      <tr><td><code>[2]</code> menu_string</td><td>string</td><td>Localization string key for version menu</td></tr>
-    </table>
+    <p>Jump to: <a href="#per-game">game parameters</a> &middot;
+      <a href="#overdrive">run-ahead</a> &middot; <a href="#pad-type">controller types</a> &middot;
+      <a href="#tg16-option">timing bits</a> &middot; <a href="#controller">input mappings</a> &middot;
+      <a href="#sram">SRAM</a> &middot; <a href="#replay-wallpaper">replay/backgrounds</a> &middot;
+      <a href="#framework">conditional fields</a>.</p>
 
     <div class="box box-info">
-      <strong>Game variant suffixes</strong>
-      <ul style="margin-top:8px; margin-bottom:0">
-        <li><code>GAME002E</code> &mdash; "E" suffix = alternate version (e.g., different audio)</li>
-        <li><code>GAME009S</code> &mdash; "S" suffix = special version (e.g., button swap)</li>
-        <li><code>GAME016F</code> &mdash; "F" suffix = hidden bonus game (Force Gear)</li>
-        <li><code>GAME016T</code> &mdash; "T" suffix = hidden bonus game (Twinbee Returns)</li>
-      </ul>
-      <p style="margin-top:8px">
-        Variant IDs must have entries in <strong>both</strong> <code>game_versions</code> and <code>m2epi.version</code>.
-        The <code>game_versions_layout</code> and <code>game_versions_default</code> fields (optional)
-        control which variants appear in the version selection menu.
-      </p>
+      <strong>Scope of the reference</strong>
+      The findings below apply to the original ARM m2engage executable with SHA-256
+      <code>b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792</code>.
+      They come from the shipped Squirrel scripts, native disassembly and targeted execution probes.
+      A framework option being read does not establish that the selected core implements it.
     </div>
 
-    <h4>Optional game_versions sub-tables</h4>
-    <p>These are checked with <code>"key" in title_prof</code> and can be omitted:</p>
-    <pre><code>// game_content.nut — version selection
-if ("game_versions_layout" in title_prof) {
-    // Defines which versions appear in the selection menu per region
-    // Format: {regionTag: ["GAME000", "GAME000E", ...]}
-}
-if ("game_versions_default" in title_prof) {
-    // Sets the default version when multiple exist
-    // Format: {regionTag: "GAME000"}
-}</code></pre>
+    <h2 id="loading">Loading, Structure and Precedence</h2>
+    <pre><code>040/config/title_prof.psb.m
+040/config/title_prof_specdepend.psb.m</code></pre>
+    <p>The resource layer decrypts/decompresses and parses the PSB. The stock
+      <code>game_content.nut:_get_title_prof()</code> then reads its <code>root</code> member,
+      merges the platform-specific profile into it, and caches the resulting table.
+      The settings contract is implemented by Squirrel readers and the native functions they call.
+      It is not a native parser with a fixed seven-section schema.</p>
+    <pre><code>// Stock game_content.nut:975; path constants abbreviated here.
+local title_prof      = ::util_load_config(title_prof_path).root;
+local title_prof_spec = ::util_load_config(title_prof_spec_path).root;
+title_prof = ::merge_tables(title_prof_spec, title_prof);</code></pre>
+    <p>The <code>root</code> wrapper is therefore needed for this stock reader. Later code uses
+      <code>title_prof.m2epi</code>, for example, rather than <code>title_prof.root.m2epi</code>.
+      The retail PceMini profile contains these seven sections; this is an observed layout,
+      not proof that every section is unconditionally required by a native schema:</p>
+    <div class="diagram">root
+ |- controller        input mappings and rapid fire
+ |- game_versions     version IDs and menu text keys
+ |- m2epi             emulator defaults
+ |   \- version       per-game configuration, keyed by version tag
+ |- player_num        shared session player count
+ |- replay            replay durations
+ |- title             package/title identity
+ \- wallpaper         background resources</div>
+    <ul>
+      <li><code>title_prof_specdepend</code> is merged recursively over the base profile.
+        Arrays are merged by index; a shorter override does not remove the existing tail.
+        Whether nested array entries are merged depends on the source array's first element type.</li>
+      <li>For ordinary emulator options, priority is
+        <code>m2epi.version[tag].key</code> &rarr; <code>m2epi.key</code> &rarr; the reader's default.</li>
+      <li><code>arch</code>, <code>country</code> and <code>rom</code> are read from the selected version only.</li>
+      <li><code>attr</code> is selected as one whole table: a version table replaces the global table.
+        <code>string</code> instead merges names, with version values overriding matching global names.</li>
+      <li><code>player_num</code>, <code>player_input_num</code> and <code>rapid_speed_list</code>
+        have their own fallback rules described below. Shared SRAM and package settings do not automatically gain version overrides.</li>
+    </ul>
+    <div class="box box-warning"><strong>Diagnosing a broken profile</strong>
+      Invalid PSB data, missing members used without a guard, wrong types and missing resources can fail at different stages.
+      A lack of script output does not by itself identify <code>title_prof</code> or prove that the failure occurred before Squirrel started.</div>
 
-    <!-- --- controller --- -->
-    <h3>controller <span class="tag">required</span></h3>
-    <p>Global controller configuration shared across all games:</p>
+    <h2 id="per-game">Per-Game Emulator Parameters</h2>
+    <p>Unless a row says otherwise, these keys can be placed in <code>m2epi</code> as shared defaults
+      or in <code>m2epi.version[tag]</code> as an override. Defaults below are the stock reader's
+      fallback values, rather than a recommendation to add every key to every profile.</p>
+    <table>
+      <tr><th>Key</th><th>Values / default</th><th>Effect</th></tr>
+      <tr><td><code>arch</code></td><td>Version only: <code>"tg16"</code>, <code>"tg16cd"</code>, <code>"sgx"</code></td>
+        <td>Selects the HuCard, CD or SuperGrafx core. Names are case-sensitive. The ROM extension does not select the core. The helper falls back to an empty string, which is not a usable core selection.</td></tr>
+      <tr><td><code>country</code></td><td>Version only: <code>"jp"</code> / <code>"us"</code>; directly accessed</td>
+        <td>Hardware region presented through the controller bus: <code>jp</code> sets bit <code>0x40</code>, <code>us</code> clears it. Other strings use the Japanese constructor fallback. This does not select a PAL refresh rate.</td></tr>
+      <tr><td><code>rom</code></td><td>Version only: relative path</td>
+        <td>The file to load, resolved through <code>conv_path()</code> for the selected package. Use the path convention expected by the resource loader, such as <code>roms/KungFu_J.pce</code>; encrypted <code>.m</code> resource handling is separate. Missing values fall back to an empty path.</td></tr>
+      <tr><td><code>preamp</code></td><td>Number, default <code>0.0</code> dB</td>
+        <td>Relative audio gain in decibels. <code>0</code> keeps the reference level, <code>+6</code> is approximately twice the signal amplitude, <code>&minus;6</code> approximately half. Positive gain can clip. It is added to the driver's and architecture's gain settings, then truncated to centi-dB; it is not a percentage.</td></tr>
+      <tr><td><code>overdrive</code></td><td>Integer, default <code>0</code></td>
+        <td>Run-ahead for input latency reduction. <code>N &gt; 0</code> displays a simulation N frames ahead while keeping the normal one-frame state progression. Extra simulation costs CPU time. <a href="#overdrive">Algorithm and example</a>.</td></tr>
+      <tr><td><code>brightness</code></td><td>Number, default <code>1.0</code></td>
+        <td>Sets the same tint multiplier on the display's RGB channels. <code>0</code> is black and values between <code>0</code> and <code>1</code> dim the image. The traced 8-bit tint path clamps <code>255 &times; value</code> to <code>255</code>, so values above <code>1</code> do not provide additional gain in that path. The emulated VDC palette is unchanged.</td></tr>
+      <tr><td><code>tg16pad_type</code></td><td>Integer, low 3 bits; default <code>1</code></td>
+        <td>Controller protocol and input routing: multitap, six-button protocol and auxiliary inputs. <a href="#pad-type">Complete table below</a>. In particular, <code>5</code> still selects the two-button protocol.</td></tr>
+      <tr><td><code>tg16_option</code></td><td>Integer, low 4 bits; default <code>0</code></td>
+        <td>Architecture-dependent timing options. Value <code>1</code> changes VBlank timing; value <code>4</code> provides extra CPU cycles on selected scanlines in the HuCard core. <a href="#tg16-option">Bit definitions below</a>.</td></tr>
+      <tr><td><code>tg16_hblank</code></td><td>Integer, low 8 bits; default packed value <code>0</code></td>
+        <td>Sets <code>vdp_tg16.hstart</code>. Values <code>0&ndash;9</code> select the native default <code>87</code>; <code>10&ndash;255</code> use that value. Adjusts horizontal sequencing, not the image width in pixels. TG16 and TG16CD consume it; SGX does not. Sapphire specifies <code>100</code>.</td></tr>
+      <tr><td><code>tg16cd_systemcard</code></td><td>String: <code>"super"</code>, <code>"arcade"</code>, other/absent</td>
+        <td>TG16CD only. <code>super</code> selects hardware mode 1; <code>arcade</code> selects mode 2 and allocates an additional 2 MiB of Arcade Card RAM. Other values select mode 0. This is a hardware configuration, not a BIOS filename.</td></tr>
+      <tr><td><code>use_analog</code></td><td>Boolean, default <code>false</code></td>
+        <td><code>true</code> disables the normal merging of the left stick into digital directions. It does not add analog hardware or analog controls to a PC Engine game.</td></tr>
+      <tr><td><code>direction</code></td><td>Integer/string; only <code>tostring() == "4"</code> is special</td>
+        <td><code>4</code> converts stick movement into four cardinal sectors with a radial dead zone. Other values use the ordinary X/Y thresholds, allowing diagonals. It does not change the number of controller buttons.</td></tr>
+      <tr><td><code>view_split</code></td><td>Two positive integers <code>[X,Y]</code>; default <code>[1,1]</code></td>
+        <td>Subdivides the display mesh into X&times;Y pieces. It does not enable split-screen multiplayer. The native Y setter compares the new Y against the old X instead of the old Y, so some changes can skip rebuilding the mesh. No small fixed upper bound was established by this audit.</td></tr>
+      <tr><td><code>sram_support</code></td><td>Boolean, default <code>false</code></td>
+        <td>Enables the stock scripts' SRAM synchronization and related menu options. Disabling it does not remove backup RAM from the emulated hardware or disable save states. All versions in the examined retail profile inherit <code>false</code>.</td></tr>
+    </table>
+
+    <h3 id="overdrive">What overdrive Does</h3>
+    <p><code>overdrive</code> aims to make controls feel more responsive. It is not a CPU speed multiplier,
+      and the game does not skip forward by N frames when a button is pressed.</p>
+    <p>For each normal update, with <code>N &gt; 0</code> and a video buffer available, the native task:</p>
+    <ol>
+      <li>Runs one frame using the current inputs.</li>
+      <li>Saves the resulting machine state.</li>
+      <li>Runs N additional frames using those current inputs and displays the last image.</li>
+      <li>Restores the saved state from step 2.</li>
+    </ol>
+    <p>The lasting game state advances by one frame; the displayed image comes from N simulated frames later.
+      This is repeated continuously. The next update starts from the restored state and uses newly sampled inputs.
+      The engine does not calculate every possible direction and button combination, and it does not know future inputs.</p>
+    <div class="box box-info"><strong>Practical example</strong>
+      Suppose a game's own input handling takes two frames to show a shot. With <code>overdrive = 2</code>,
+      those extra simulated frames can already contain the shot, so the current display update can show it sooner.
+      The normal game timeline still advances by one frame. The benefit depends on the game's own delay and the machine's ability to finish the extra work.</div>
+    <p><code>N &lt;= 0</code>, or an update without a video buffer, takes the normal single-frame path.
+      Evidence: task <code>0x1ed238</code>, save <code>0x1ef7a4</code> (machine command <code>0x203</code>),
+      restore <code>0x1ef704</code> (<code>0x202</code>). Targeted probes checked the call order and lasting state
+      for N = &minus;1, 0, 1, 2, 3 and 8, with and without a video buffer; they did not measure real-time audio/video performance.</p>
+
+    <h3 id="pad-type">tg16pad_type: Three Independent Bits</h3>
+    <p>The value is masked with <code>7</code>. Add the desired masks:</p>
+    <table>
+      <tr><th>Bit / mask</th><th>Set</th><th>Clear</th></tr>
+      <tr><td>0 / <code>1</code></td><td>Five-port multitap protocol enabled</td><td>No multitap port advance</td></tr>
+      <tr><td>1 / <code>2</code></td><td>Six-button protocol, including the second read bank for III&ndash;VI</td><td>Two-button protocol</td></tr>
+      <tr><td>2 / <code>4</code></td><td>Auxiliary logical input stays with its corresponding port</td><td>Auxiliary logical input from all five slots is shared across ports</td></tr>
+    </table>
+    <table>
+      <tr><th>Value</th><th>Buttons</th><th>Multitap</th><th>Auxiliary routing</th></tr>
+      <tr><td><code>0</code></td><td>2</td><td>No</td><td>Shared</td></tr>
+      <tr><td><code>1</code> (default)</td><td>2</td><td>Yes</td><td>Shared</td></tr>
+      <tr><td><code>2</code></td><td>6</td><td>No</td><td>Shared</td></tr>
+      <tr><td><code>3</code></td><td>6</td><td>Yes</td><td>Shared</td></tr>
+      <tr><td><code>4</code></td><td>2</td><td>No</td><td>Per port</td></tr>
+      <tr><td><code>5</code></td><td>2</td><td>Yes</td><td>Per port</td></tr>
+      <tr><td><code>6</code></td><td>6</td><td>No</td><td>Per port</td></tr>
+      <tr><td><code>7</code></td><td>6</td><td>Yes</td><td>Per port</td></tr>
+    </table>
+    <p>The native input collector forms two groups: A[0&hellip;4] from logical slots 1&ndash;5,
+      and B[0&hellip;4] from slots 6&ndash;10. With mask 4 clear, port i reads
+      <code>A[i] | B[0] | B[1] | B[2] | B[3] | B[4]</code>; with it set, port i reads
+      <code>A[i] | B[i]</code>. These are engine input slots, not proof of ten physical controller ports.</p>
+    <p>Retail examples: Kung Fu, Necromancer and J.J. &amp; Jeff use <code>0</code>; Sapphire uses <code>5</code>.
+      Other games normally inherit <code>1</code>. The same pad constructor is used by all three PCE architectures.
+      Evidence: constructor <code>0x77738</code>, input collection <code>0x77a28</code>, bus control/read
+      <code>0x77b58</code>/<code>0x77b9c</code>.</p>
+
+    <h3 id="tg16-option">tg16_option: Timing and Architecture</h3>
+    <p>The value is masked with <code>15</code>. Bits 0&ndash;1 are sent to the TG16 VDC;
+      bits 2&ndash;3 are sent to the machine option. Their actual consumers differ by core.</p>
+    <table>
+      <tr><th>Bit / mask</th><th>Native effect</th><th>Player-facing consequence</th></tr>
+      <tr><td>0 / <code>1</code></td><td>On TG16/TG16CD, delays the VBlank phase from the end of the displayed area
+        to the beginning of the next frame. This includes the VBlank interrupt and any requested VRAM-to-SATB sprite-table transfer.</td>
+        <td>Changes when the game is notified and when sprite-table updates can occur. It can affect timing-sensitive behavior; the profile alone does not prove a particular game's intended fix.</td></tr>
+      <tr><td>1 / <code>2</code></td><td>Stored in the TG16 VDC option but not used by its identified consumer.</td><td>No effect in the audited paths.</td></tr>
+      <tr><td>2 / <code>4</code></td><td>TG16 HuCard core only: doubles the CPU budget on scanlines 0&ndash;29 and 249&ndash;262
+        (44 of the 263 lines). Returned CPU cycles are rescaled, preserving the VDC's time unit.</td>
+        <td>Provides extra emulated CPU work during those lines, which can reduce CPU-related slowdown.
+          It does not double the game's overall speed and is separate from run-ahead.</td></tr>
+      <tr><td>3 / <code>8</code></td><td>Stored as machine option bit 1 but not used by its identified consumer.</td><td>No effect in the audited paths.</td></tr>
+    </table>
+    <table>
+      <tr><th>Architecture</th><th>Pad bits</th><th>hblank</th><th>Option 1: VBlank</th><th>Option 4: extra CPU</th><th>System card</th></tr>
+      <tr><td><code>tg16</code></td><td>Used</td><td>Used</td><td>Used</td><td>Used</td><td>Ignored</td></tr>
+      <tr><td><code>tg16cd</code></td><td>Used</td><td>Used</td><td>Used</td><td>Ignored</td><td>Used</td></tr>
+      <tr><td><code>sgx</code></td><td>Used</td><td>Ignored</td><td>Ignored</td><td>Ignored</td><td>Ignored</td></tr>
+    </table>
+    <p>SGX constructs two separate VDCs and does not consume <code>vdp_tg16.hstart</code>,
+      <code>vdp_tg16.option</code> or <code>machine_tg16.option</code>.
+      Values 2 and 8 can still be combined with working bits, but add no effect in these paths.</p>
+    <p>Retail examples: Dracula X uses <code>1</code>; Fantasy Zone and its alternate sound version use
+      <code>5 = 1 | 4</code>; Sapphire explicitly uses <code>0</code>.
+      The mechanics above are established; M2's exact reason for each choice is not established by these values.</p>
+    <p>Evidence: option unpacking <code>0x349a8</code>, VDC test <code>0x7af60</code>, VBlank phase
+      <code>0x7b3dc</code>, TG16 frame loop <code>0x762c8</code>. The pad/VDC/CPU audit contains 96 targeted assertions;
+      its CPU calls were stubbed to inspect budgets, so it is not a real-game performance measurement.</p>
+
+    <h3 id="native-packing">Native Packing</h3>
+    <p>The stock script packs architecture settings into <code>archSubInfo</code> before initializing the native task:</p>
+    <pre><code>bit 0                    disable_md_6B
+bit 2                    use_analog
+bit 3                    direction converts to "4"
+bit 4                    tg16cd_systemcard == "super"
+bit 5                    tg16cd_systemcard == "arcade"
+(tg16pad_type &amp; 7) &lt;&lt; 6
+(tg16_hblank &amp; 255) &lt;&lt; 9
+(tg16_option &amp; 15) &lt;&lt; 17</code></pre>
+    <p>These are the original ARM binary's constants (<code>0x29320&ndash;0x29390</code>).
+      In particular, the three shifts are 6, 9 and 17.</p>
+
+    <h3 id="version-input">Other Version-Specific Fields</h3>
+    <table>
+      <tr><th>Key in <code>m2epi.version[tag]</code></th><th>Values / fallback</th><th>Effect</th></tr>
+      <tr><td><code>player_num</code></td><td>Integer; root <code>player_num</code></td><td>Overrides the runtime player count used by utility readers. This is distinct from the menu card's <code>players</code>. <code>TitleSession.get_player_num()</code> itself still returns the root value.</td></tr>
+      <tr><td><code>player_input_num</code></td><td>Integer; root <code>player_input_num</code>, then runtime player count</td><td>Number of logical input slots initialized by the task. The native input machinery has ten logical slots; the PC Engine multitap still has five ports.</td></tr>
+      <tr><td><code>rapid_speed_list</code></td><td>Array of frequencies; <code>controller.rapid_speed_list</code></td><td>Overrides the rapid-fire speeds offered for this version. Retail list: <code>[10,12,15,20,30]</code>. These are frequencies at a nominal 60 frames/s, not counts of frames per toggle.</td></tr>
+      <tr><td><code>systemdata_sram_data_no</code></td><td>Integer; <code>crossconv_game_region(tag)</code></td><td>Selects the SystemData SRAM storage slot. Shared <code>m2epi.sram_common = true</code> takes priority and forces slot 0. This is not a save-state slot number.</td></tr>
+    </table>
+
+    <h3 id="inactive">Read, but Inactive in the PCE Cores</h3>
+    <table>
+      <tr><th>Key</th><th>Type / fallback</th><th>What actually happens</th></tr>
+      <tr><td><code>extra_info</code></td><td>Integer, <code>0</code></td><td>Passed as the factory's fourth argument. The common factory used by TG16, TG16CD and SGX (<code>0x1ed4bc</code>) never reads that argument.</td></tr>
+      <tr><td><code>attr</code></td><td>Table of name &rarr; integer; none</td><td>Stored in the Squirrel task wrapper and sent through <code>setAttribute</code>. All three PCE machine callbacks immediately return (<code>0x7624c</code>, <code>0x7e920</code>, <code>0x87f54</code>). No core effect is established.</td></tr>
+      <tr><td><code>string</code></td><td>Table of name &rarr; string; none</td><td>Global and version names are merged and passed to <code>setString</code>. Native adapter opcode 22 returns without applying them.</td></tr>
+      <tr><td><code>stringGlobal</code></td><td>Table; none</td><td>The value is read, but its application call is commented out in the shipped script.</td></tr>
+      <tr><td><code>disable_md_6B</code></td><td>Boolean; false</td><td>A Mega Drive flag occupying bit 0. It does not configure six-button PCE pads; those use <code>tg16pad_type</code> bit 1.</td></tr>
+      <tr><td><code>md_multitap</code>, <code>use_subthread</code></td><td>No active reader</td><td>The relevant reads are entirely commented out. They are not functioning options in the audited stock script.</td></tr>
+    </table>
+    <p>The first five keys use the ordinary global/version lookup rules. Conditional game-specific scripts
+      can inspect wrapper data themselves, so an inactive PCE callback is not proof that an arbitrary custom script could never use a value.</p>
+
+    <h2 id="versions">Version Identity and Menu Links</h2>
+    <pre><code>"game_versions": {
+  "GAME000":  [0,  0, "MenuItemText__TITLE_GAME_VERSION_000"],
+  "GAME002":  [2,  0, "MenuItemText__TITLE_GAME_VERSION_002"],
+  "GAME002E": [52, 0, "MenuItemText__TITLE_GAME_VERSION_053"]
+}</code></pre>
+    <p>Each entry is <code>[index, dlc_number, text_key]</code>. The game-content reader computes
+      the internal ID as <code>index + dlc_number * id_threshold</code> and retains the localization key.
+      The PceMini profile uses DLC number 0. Its 83 version entries include variants; the IDs are not simply
+      the visible menu positions. <code>GAME000</code> is a data convention rather than a parser keyword.</p>
+    <p>A launchable <a href="title-mode-top.html"><code>title_mode_top</code></a> item's
+      <code>regionTag</code> and alternate version tags must resolve to available game-content versions
+      and corresponding <code>m2epi.version</code> configurations. The retail profile supplies its version map
+      in <code>game_versions</code>; the framework can otherwise use the table from <code>game_content.psb</code>.
+      An unused menu placeholder such as <code>DUMMY</code> does not need a launch profile.</p>
+    <p>Suffixes such as E, S, F and T name particular retail variants; they do not define a general native suffix protocol.
+      Their meaning comes from the menu/controller logic and the configuration attached to each tag.</p>
+    <table>
+      <tr><th>Root key</th><th>Values / fallback</th><th>Effect</th></tr>
+      <tr><td><code>game_versions_layout[packageRegion]</code></td><td>Array of tags or tables; otherwise ID order</td><td>Orders the version selection menu for the package region. Unknown/unavailable version names are skipped. Table entries use <code>name</code> and <code>only_show_at_debug</code>; the latter hides an entry outside a debug build.</td></tr>
+      <tr><td><code>game_versions_default[packageRegion]</code></td><td>Version tag; package/region rule otherwise</td><td>Chooses the initially selected version. Package region is distinct from the emulator's <code>country</code>.</td></tr>
+      <tr><td><code>title.dev_name</code></td><td>String, e.g. <code>"PceMini"</code></td><td>Package/title identity converted to <code>dev_id</code> for resource and session selection. It is neither the ROM filename nor the core selector. In the examined content PceMini uses directory <code>040/</code>.</td></tr>
+      <tr><td><code>player_num</code></td><td>Root integer; retail value <code>6</code></td><td>Shared session player count. It is not a per-game dictionary and does not imply six emulated controller ports. Runtime utility readers can prefer a version's override.</td></tr>
+      <tr><td><code>player_input_num</code></td><td>Root integer; runtime player count otherwise</td><td>Shared logical input slot count, with a version override taking priority.</td></tr>
+    </table>
+
+    <h2 id="controller">Shared Controller Configuration</h2>
     <pre><code>"controller": {
-  "init_emu_key": [1, 2, 2, 1, 0, 0, 0, 0, 1073741824, 0, 512, 1024, 0],
+  "init_emu_key": [1,2,2,1,0,0,0,0,1073741824,0,512,1024,0],
   "init_rapid_speed": 12,
   "key_combo_text": [
-    {"combo": 1, "text": "MenuItemText__TITLE_KEY_COMBO_A"},
-    {"combo": 2, "text": "MenuItemText__TITLE_KEY_COMBO_B"},
-    {"combo": 4, "text": "MenuItemText__TITLE_KEY_COMBO_C"}
+    {"combo":1,"text":"MenuItemText__TITLE_KEY_COMBO_A"},
+    {"combo":2,"text":"MenuItemText__TITLE_KEY_COMBO_B"},
+    {"combo":4,"text":"MenuItemText__TITLE_KEY_COMBO_C"}
   ],
-  "rapid_speed_list": [10, 12, 15, 20, 30],
+  "rapid_speed_list": [10,12,15,20,30],
   "use_emu_key": 7
 }</code></pre>
+    <p>Mappings assign physical-button positions (indices 0&ndash;12) to engine
+      <code>M2EpiPadFlag</code> masks. These masks are not the ROM's own button numbering.</p>
     <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-      <tr>
-        <td><code>init_emu_key</code></td><td>int[13]</td>
-        <td>Default button mapping. 13-element array mapping logical buttons to physical.</td>
-      </tr>
-      <tr>
-        <td><code>init_rapid_speed</code></td><td>int</td>
-        <td>Default rapid fire speed (12 = frames per toggle)</td>
-      </tr>
-      <tr>
-        <td><code>key_combo_text</code></td><td>array</td>
-        <td>Button combo display strings for the settings menu</td>
-      </tr>
-      <tr>
-        <td><code>rapid_speed_list</code></td><td>int[]</td>
-        <td>Available rapid fire speed options</td>
-      </tr>
-      <tr>
-        <td><code>use_emu_key</code></td><td>int</td>
-        <td>Bitmask of enabled emulator key features (7 = all basic)</td>
-      </tr>
+      <tr><th>Key under <code>controller</code></th><th>Type / fallback</th><th>Effect</th></tr>
+      <tr><td><code>init_emu_key</code></td><td>Array; required by the initialization reader</td><td>Initial emulated input assignments. Accepts a common list, per-player lists, or tables containing <code>id:[...]</code> and <code>emu_key:[...]</code>. Without a matching player, the first list is used; the last matching table wins. Entries are integer masks or <code>{key:mask, rapid:frequency}</code>.</td></tr>
+      <tr><td><code>init_rapid_speed</code></td><td>Integer frequency; directly accessed</td><td>Initial rapid-fire speed for ordinary integer mapping entries and unlisted buttons. At 60 frames/s the native period is <code>abs(60/frequency)</code>, with a 50% half-period. Thus 12 means about 12 pulses/s, not twelve frames per toggle. An unlisted SELECT position receives the MENU assignment implicitly.</td></tr>
+      <tr><td><code>init_shortcut</code></td><td>Array; default <code>[]</code></td><td>Initial shortcut assignments, with the same common/per-player selection forms and <code>{id:[...],shortcut:[...]}</code> tables. Unlisted buttons get 0.</td></tr>
+      <tr><td><code>rapid_speed_list</code></td><td>Integer array; directly accessed unless overridden by version</td><td>Allowed rapid-fire settings. The correction loop retains the last listed value less than or equal to the stored speed, so the stock increasing order matters.</td></tr>
+      <tr><td><code>use_emu_key</code></td><td>Integer mask; directly accessed by settings initialization</td><td>Emulated keys offered by mapping/command menus; also the default required-key mask.</td></tr>
+      <tr><td><code>must_emu_key</code></td><td>Integer mask; defaults to <code>use_emu_key</code></td><td>Keys which must have an assignment for the settings to be accepted.</td></tr>
+      <tr><td><code>enable_same_id_assign</code></td><td>Boolean; <code>false</code></td><td>Allows one physical controller ID to be assigned to multiple players.</td></tr>
+      <tr><td><code>emu_key_filter.on_network</code></td><td>Integer mask; <code>0</code></td><td>Input filter mask used in network sessions.</td></tr>
+      <tr><td><code>rapid_mask_emu_key</code></td><td>Integer mask; no call when absent</td><td>Disables rapid fire for the masked emulated keys, applied to each input slot.</td></tr>
+      <tr><td><code>key_combo_text[].combo</code>, <code>.text</code></td><td>Integer mask and localization key; optional list</td><td>Displays a translated label when the complete assigned combination equals <code>combo</code>.</td></tr>
+      <tr><td><code>analog_bind[]</code></td><td>Entries with <code>id</code>, <code>sign</code>, <code>device_flag</code>, <code>normalize_type</code>, optional <code>emu_key</code></td><td>Configures native analog-source bindings for each input slot. <code>sign &lt; 0</code> selects branch 1; zero/positive selects branch 0. The complete numeric meanings of <code>device_flag</code> and <code>normalize_type</code> have not been established, so an exact value list is not claimed.</td></tr>
     </table>
-    <p>Accessed in <code>title_session.nut</code>:</p>
-    <pre><code>// title_session.nut
-function get_use_emu_key() {
-    local controller = ::get_current_title_prof().controller;
-    if ("use_emu_key" in controller)
-        return controller["use_emu_key"];
-    return 0;
-}</code></pre>
 
-    <!-- --- player_num --- -->
-    <h3>player_num <span class="tag">required</span></h3>
+    <h2 id="sram">Shared SRAM and Display Settings</h2>
+    <p>These keys live directly under <code>m2epi</code>. They are not selected by the ordinary per-version
+      option helper. See <a href="save-system.html">Save System</a> for the storage formats.</p>
+    <table>
+      <tr><th>Key</th><th>Type / default</th><th>Effect</th></tr>
+      <tr><td><code>sram_hot_swap</code></td><td>Boolean; <code>false</code></td><td>When SRAM support is enabled, permits changing the MemoryCard option during pause and comparing it at state load. This is a Squirrel wrapper member, not a native hardware hotswap switch.</td></tr>
+      <tr><td><code>sram_crypted</code></td><td>Boolean; native default <code>false</code></td><td>When SRAM support is enabled, selects zlib compression/decompression of SRAM buffers instead of raw buffers. Despite the name, the audited path does not encrypt them.</td></tr>
+      <tr><td><code>sram_need_save_frame</code></td><td>Integer; no call when absent</td><td>The script calls <code>setSramNeedSaveFrame</code> when SRAM support is enabled. Its native opcode 42 is ignored by all three PCE adapters; no frame-based save delay is implemented through this call.</td></tr>
+      <tr><td><code>sram_common</code></td><td>Boolean; <code>false</code></td><td>Shares SRAM storage slot 0 across versions. Otherwise the selected version's slot is used.</td></tr>
+      <tr><td><code>attr_each</code></td><td>Boolean; <code>false</code></td><td>Stores user <code>EmuAttr</code> settings separately for each version; false shares them. This setting store is distinct from the inactive native <code>attr</code> callback.</td></tr>
+      <tr><td><code>sram_noupdate_when_state_load</code></td><td>Boolean; <code>false</code></td><td>Preserves current initialized SystemData SRAM when applying a state. If current SRAM is uninitialized, normal restoration is used.</td></tr>
+      <tr><td><code>sram_nocheck_when_state_load</code></td><td>Boolean; <code>false</code></td><td>Suppresses the MemoryCardImage comparison/confirmation at state load. It does not itself request preservation of SRAM.</td></tr>
+      <tr><td><code>screen_setting_state</code></td><td>Table of version tag &rarr; path; otherwise <code>state/emu_screen.bin</code> if available</td><td>State used for the screen-settings preview.</td></tr>
+      <tr><td><code>subst_screen_zoom_x</code></td><td>Number; <code>1</code></td><td>Scales only the X zoom of the substitute animation used as a preview image. It is not an emulated resolution setting.</td></tr>
+      <tr><td><code>debug_logging</code></td><td>Boolean; <code>false</code></td><td>Requests startup logging only in the non-master-build branch.</td></tr>
+    </table>
 
-    <div class="box box-danger">
-      <strong>This is a single integer, NOT a dict</strong>
-      A common mistake is to make this a per-game mapping. The original value is simply <code>6</code>.
-    </div>
-
-    <pre><code>"player_num": 6</code></pre>
-    <p>
-      Represents the maximum number of player slots (not per-game player count &mdash; that's in
-      title_mode_top's <code>players</code> field). Accessed directly:
-    </p>
-    <pre><code>// title_session.nut
-function get_player_num() {
-    return ::get_current_title_prof().player_num;  // returns 6
-}</code></pre>
-
-    <!-- --- replay --- -->
-    <h3>replay <span class="tag">required &mdash; exact field names</span></h3>
-
-    <div class="box box-danger">
-      <strong>Field names must match exactly</strong>
-      Using wrong field names (e.g., <code>fps</code> / <code>record_sec</code> instead of the
-      correct names below) will crash the native parser.
-    </div>
-
+    <h2 id="replay-wallpaper">Replay and Wallpaper</h2>
     <pre><code>"replay": {
   "init_replay_record_time": 60,
   "max_replay_record_time": 60,
-  "replay_record_time_list": [0, 30, 60]
-}</code></pre>
-    <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-      <tr>
-        <td><code>init_replay_record_time</code></td><td>int</td>
-        <td>Default replay recording duration in seconds</td>
-      </tr>
-      <tr>
-        <td><code>max_replay_record_time</code></td><td>int</td>
-        <td>Maximum allowed replay duration in seconds</td>
-      </tr>
-      <tr>
-        <td><code>replay_record_time_list</code></td><td>int[]</td>
-        <td>Available options: [0 = off, 30, 60] seconds</td>
-      </tr>
-    </table>
-    <p>Accessed in <code>emulator.nut</code> for the replay recording feature:</p>
-    <pre><code>// emulator.nut
-local title_prof = get_current_title_prof();
-if ("max_replay_record_time" in title_prof.replay) {
-    record_minutes = title_prof.replay["max_replay_record_time"];
-}</code></pre>
-
-    <!-- --- title --- -->
-    <h3>title <span class="tag">required</span></h3>
-    <p>Simple object with a single field identifying the device/platform:</p>
-    <pre><code>"title": {
-  "dev_name": "PceMini"
-}</code></pre>
-    <p>
-      <code>dev_name</code> maps to a numeric <code>dev_id</code> via <code>get_title_dev_id()</code>.
-      "PceMini" maps to dev_id 40 (PCE), which determines which <code>040/</code> directory
-      to load game data from.
-    </p>
-    <pre><code>// title_session.nut
-function get_dev_id() {
-    return get_title_dev_id(::get_current_title_prof().title.dev_name);
-}</code></pre>
-
-    <!-- --- wallpaper --- -->
-    <h3>wallpaper <span class="tag">required &mdash; exact field names</span></h3>
-
-    <div class="box box-danger">
-      <strong>Field names must match exactly</strong>
-      Using wrong field names (e.g., <code>motion_file</code> / <code>num</code> instead of
-      <code>datafile</code> / <code>max_num</code>) will crash the native parser.
-    </div>
-
-    <pre><code>"wallpaper": {
+  "replay_record_time_list": [0,30,60]
+},
+"wallpaper": {
   "datafile": "motion/bg%02d.psb",
   "max_num": 1
 }</code></pre>
     <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-      <tr>
-        <td><code>datafile</code></td><td>string</td>
-        <td>Printf pattern for background motion PSB files (relative to 040/)</td>
-      </tr>
-      <tr>
-        <td><code>max_num</code></td><td>int</td>
-        <td>Number of available wallpaper variants (1 = just bg00.psb)</td>
-      </tr>
+      <tr><th>Path</th><th>Values / fallback</th><th>Effect</th></tr>
+      <tr><td><code>replay.init_replay_record_time</code></td><td>Integer, minutes; directly accessed</td><td>Initial replay duration stored in SystemData.</td></tr>
+      <tr><td><code>replay.replay_record_time_list</code></td><td>Integer array, minutes; directly accessed</td><td>Durations offered in settings and used to correct the saved choice. Increasing order is expected; 0 disables recording.</td></tr>
+      <tr><td><code>replay.max_replay_record_time</code></td><td>Integer, minutes; fallback <code>360</code></td><td>Duration used by <code>start_replay_record</code> when no explicit duration is supplied and replay recording is enabled; otherwise 0. Native frame count is <code>60 * 60 * minutes</code>. It is distinct from the initial user setting.</td></tr>
+      <tr><td><code>wallpaper.datafile</code></td><td>Format string; directly accessed</td><td>Background Motion PSB name built with <code>format(datafile,index)</code>.</td></tr>
+      <tr><td><code>wallpaper.max_num</code></td><td>Integer N or package-region table; directly accessed</td><td>An integer means N title-specific backgrounds <em>plus one system background</em>. A regional table supplies <code>list</code> of actual background numbers, also plus the system background.</td></tr>
+      <tr><td><code>wallpaper.secret_num</code></td><td>Integer; <code>0</code></td><td>Subtracts locked secret backgrounds from an integer <code>max_num</code>.</td></tr>
+      <tr><td><code>wallpaper.max_num[packageRegion].list</code></td><td>Integer array</td><td>For a regional table, index 0 stays the system background; positive UI indices map through <code>list[index-1]</code>.</td></tr>
+      <tr><td><code>wallpaper.max_num[packageRegion].secret_num</code></td><td>Integer; <code>0</code></td><td>Secret background count in the regional form; the root <code>wallpaper.secret_num</code> is not used in this form.</td></tr>
     </table>
 
-    <!-- ===== RELATIONSHIP DIAGRAM ===== -->
-    <h2>Relationships</h2>
+    <h2 id="framework">Conditional Framework Fields</h2>
+    <p>The shared framework contains readers for other packages and capabilities. The following keys describe
+      those readers, not a promise that every feature is available in the retail PceMini user interface.</p>
+    <table>
+      <tr><th>Root path</th><th>Values / default</th><th>Effect and condition</th></tr>
+      <tr><td><code>use_gamesettings</code></td><td>Boolean; false</td><td>Enables game settings from <code>title_setting_game.psb</code> and their EmuAttr application.</td></tr>
+      <tr><td><code>use_3dmode</code></td><td>Boolean; false</td><td>Enables 3D-related menu/functions and requests system latency mode <code>MODE_2V</code>.</td></tr>
+      <tr><td><code>use_multiplay</code></td><td>Boolean; false</td><td>Enables network multiplayer session/menu branches where supported by the platform.</td></tr>
+      <tr><td><code>use_sram_clear</code></td><td>Boolean; false</td><td>Allows the SRAM-clear menu outside debug builds.</td></tr>
+      <tr><td><code>disable_1v</code></td><td>Boolean; false</td><td>Requests <code>MODE_2V</code> in the player-control zone, which normally requests <code>MODE_1V</code>. These system scheduling modes are distinct from <code>overdrive</code>.</td></tr>
+      <tr><td><code>screen_fine_reverse</code></td><td>Boolean; false</td><td>Reverses the axis used by integer scaling in ScreenFine; rotation reverses that choice again.</td></tr>
+      <tr><td><code>screen_rotate_force_enable</code></td><td>Boolean; false</td><td>Offers rotation choices even when the native rotation capability is <code>NONE</code>.</td></tr>
+      <tr><td><code>medal_system_support</code></td><td>Boolean; false</td><td>Allows the medal system where the platform supports it. The package profile's key takes priority over the current profile's key.</td></tr>
+      <tr><td><code>notify_position</code></td><td>Value forwarded unchanged</td><td>Passed to <code>MedalSystem.setNotifyPosition</code> in that conditional feature. Its complete value domain is not established; it is not an emulator image offset.</td></tr>
+      <tr><td><code>menu_skin_config</code></td><td>String; <code>config/menu_motion_text.psb</code> otherwise</td><td>An override name is loaded as <code>config/&lt;name&gt;.psb</code>. Current/package profile selection depends on the menu context.</td></tr>
+      <tr><td><code>command_list.datafile</code></td><td>Nonempty string enables the branch</td><td>Its presence/length enables command-related menus. The audited readers obtain the actual data from the separate command-list configuration path; this value is not opened as a filename by those readers.</td></tr>
+      <tr><td><code>standalone_script</code></td><td>Path; otherwise common controller</td><td>Executed on each launch before creating a game-specific controller. Such a script can read additional fields beyond this reference.</td></tr>
+      <tr><td><code>on_trial_version.playable</code></td><td>Boolean; false</td><td>Permits launch in a trial package.</td></tr>
+      <tr><td><code>on_trial_version.frame_time_limit</code></td><td>Integer frame-loop count; no counter otherwise</td><td>Limits the trial loop; displayed time assumes 60 frames/s, and the session ends when the counter reaches zero.</td></tr>
+      <tr><td><code>on_trial_version.script_control</code></td><td>Boolean; false</td><td>Uses the game-specific controller's <code>is_finished_on_trial_version</code> test.</td></tr>
+    </table>
 
-    <h3>Internal: game_versions &harr; m2epi.version</h3>
-    <p>
-      Every key in <code>game_versions</code> must also exist in <code>m2epi.version</code>.
-      They share the same GAMEID namespace:
-    </p>
-    <div class="diagram">
-<span class="hl-blue">Internal cross-references within title_prof</span>
+    <h3 id="patches">Patch and Arranged-Sound Readers</h3>
+    <p>The names of these optional sections are not evidence that arbitrary ROM patching or replacement music works on PCE.</p>
+    <table>
+      <tr><th>Path</th><th>Read behavior</th><th>PCE result / limit</th></tr>
+      <tr><td><code>original_bug.mode</code>, <code>default_patch.mode</code></td><td>Integer, default 0. Nonzero enables processing of <code>set_list</code> at startup and reset.</td><td><code>original_bug</code> also chooses supplied data or zero according to the OriginalBug setting; <code>default_patch</code> uses supplied data.</td></tr>
+      <tr><td><code>original_bug.set_list[].offset</code>, <code>.data</code><br><code>default_patch.set_list[].offset</code>, <code>.data</code></td><td>Integer offset and data; incomplete entries skipped. Calls <code>setRamValue(8, offset &amp; 0xffff, data)</code>.</td><td>8 is the write width in bits. The call reaches machine command 10, which all three PCE dispatchers ignore. No memory write occurs through this API; it is not a working ROM patch facility on these cores.</td></tr>
+      <tr><td><code>arrange_sound.volume</code></td><td>Number; default 0.7</td><td>Stores an arranged-sound volume value. This setter alone does not establish that the mode is active for a PCE title.</td></tr>
+      <tr><td><code>arrange_sound.track_data[].req</code>, <code>.track</code></td><td>Integer command index &rarr; track number</td><td>Both are truncated to a byte when building the native command table.</td></tr>
+      <tr><td><code>arrange_sound.secmd_mask</code>, <code>.secmd_req</code></td><td>Integer mask and comparison value; no call without mask</td><td>Clears each multiple-command table entry i where <code>(i &amp; mask) == secmd_req</code>, for i = 0&ndash;255.</td></tr>
+      <tr><td><code>arrange_sound.multibyte_cmd[].req</code>, <code>.cmd</code></td><td>Integer command index &rarr; command byte</td><td>Builds the multiple-command table with byte-truncated indices and values.</td></tr>
+      <tr><td><code>arrange_sound.fadeout_time</code></td><td>Integer; no call when absent</td><td>The value is stored, but its unit and an active consumer have not been established. It must not be described as a proven fade in seconds.</td></tr>
+    </table>
 
-game_versions                         m2epi.version
- "<span class="highlight">GAME000</span>": [0, 0, "..."]  &lt;----&gt;  "<span class="highlight">GAME000</span>": {arch, country, rom, preamp}
- "<span class="highlight">GAME002</span>": [2, 0, "..."]  &lt;----&gt;  "<span class="highlight">GAME002</span>": {arch:"tg16cd", ...}
- "<span class="highlight">GAME002E</span>": [52, 0, "..."] &lt;----&gt;  "<span class="highlight">GAME002E</span>": {arch:"tg16cd", ...}
+    <details id="rankingattack">
+      <summary><strong>Ranking-attack configuration reference</strong></summary>
+      <p>This conditional subsystem uses its own game controller and external state-check configuration.
+        Nested fields in that external PSB belong to that resource, not to <code>title_prof</code>.
+        A selected <code>kind.&lt;name&gt;.kind.&lt;sub&gt;</code> table is used directly for final configuration;
+        it does not automatically inherit every parent field.</p>
+      <table>
+        <tr><th>Path under <code>rankingattack</code></th><th>Values / fallback</th><th>Effect</th></tr>
+        <tr><td><code>script</code></td><td>Required path when feature used</td><td>Controller script executed on each initialization.</td></tr>
+        <tr><td><code>state_check</code></td><td>Optional path</td><td>External PSB whose <code>root.ranking_attack</code> configures the state-check controller.</td></tr>
+        <tr><td><code>layout</code></td><td>Required array of names</td><td>Mode order and save numbers; the same mechanism applies to submode layouts.</td></tr>
+        <tr><td><code>menu_motion</code></td><td>Optional string/localization key</td><td>Selects the animated menu, loading <code>motion/&lt;name&gt;.psb</code>; otherwise uses the standard menu.</td></tr>
+        <tr><td><code>menu_type</code></td><td>String; horizontal</td><td><code>"vertical"</code> chooses UP/DOWN; otherwise LEFT/RIGHT.</td></tr>
+        <tr><td><code>menu_motion_language_by_variable.name</code>, <code>.value</code></td><td>Variable name and localization key</td><td>Sets the named Motion variable to the translated value converted to an integer.</td></tr>
+        <tr><td><code>kind[name].text</code></td><td>Required localization key</td><td>Mode name in menus and rankings.</td></tr>
+        <tr><td><code>kind[name].msgKey</code>, <code>.guideKey</code></td><td>Optional message/guide keys</td><td>Standard menu help text and guide.</td></tr>
+        <tr><td><code>kind[name].layout</code>, <code>.kind[sub]</code></td><td>Optional array and nested tables</td><td>Defines submodes. An <code>overall</code> layout entry enables the overall ranking view.</td></tr>
+        <tr><td><code>kind[name].ranking_board_info[timeFilter]</code></td><td>Integer or table containing <code>id</code></td><td>Leaderboard identifier; the table form uses only its <code>id</code> member when present.</td></tr>
+        <tr><td><code>kind[name].name_list[sub]</code></td><td>Localization key; empty text otherwise</td><td>Submode label in the overall view.</td></tr>
+        <tr><td><code>kind[name].enable_pause</code></td><td>Boolean; false</td><td>Permits pause functions during the attack; read from the root mode.</td></tr>
+        <tr><td><code>kind[name].use_game_info_frame</code></td><td>Boolean; false</td><td>Shows the game-controller's information text frame; read from the root mode.</td></tr>
+        <tr><td><code>kind[name].show_limit_time</code></td><td>Optional table</td><td>Creates the remaining-time display during an attack recording; read from the root mode.</td></tr>
+        <tr><td><code>kind[name].limit_minutes</code></td><td>Integer minutes; 360</td><td>Recording limit and base for the attack countdown; read from the root mode.</td></tr>
+        <tr><td><code>kind[name].motion_label_start</code></td><td>String; <code>start</code></td><td>Opening attack animation; read from the root mode.</td></tr>
+        <tr><td><code>kind[name].no_failure</code></td><td>Boolean; false</td><td>Chooses the <code>kousin</code> result animation even without a new record. It does not remove the game's failure condition.</td></tr>
+        <tr><td><code>kind[name].state_with_replay</code></td><td>Optional path</td><td>Introductory state with replay; takes priority over <code>state</code>.</td></tr>
+        <tr><td><code>kind[name].state</code></td><td>Path or table of version tag &rarr; path</td><td>Starting state, otherwise normal reset. This field alone is used only outside replay playback.</td></tr>
+        <tr><td><code>kind[name].state_use_systemdata_game_version</code></td><td>Boolean; false</td><td>When no <code>state[tag]</code> exists, loads the state using the SystemData-selected version instead of the version recorded in the state.</td></tr>
+        <tr><td><code>kind[name].motion_label</code></td><td>Optional string</td><td>Animation shared across directions. The presence of this field on the first mode selects the convention.</td></tr>
+        <tr><td><code>kind[name].motion_label_left</code>, <code>.motion_label_right</code></td><td>Strings when directional convention used</td><td>Negative/positive navigation animations; left also supplies the <code>gamen</code> layer-name prefix.</td></tr>
+        <tr><td><code>kind[name].disable_on_trial_version</code></td><td>Boolean; false</td><td>Grays out the mode in the animated trial-version menu.</td></tr>
+        <tr><td><code>kind[name].show_limit_time.disp_always_sec</code></td><td>Integer seconds; integer 10% of time limit</td><td>Always shows the countdown when remaining seconds are at or below the threshold.</td></tr>
+        <tr><td><code>kind[name].show_limit_time.disp_danger_sec</code></td><td>Integer seconds; integer 10% of time limit</td><td>Uses color <code>0xff8080ff</code> when remaining seconds are at or below the threshold.</td></tr>
+        <tr><td><code>kind[name].show_limit_time.disp_freq_sec</code></td><td>Integer seconds; integer 10% of time limit</td><td>Modulo period for intermittent display. The code does not guard against zero.</td></tr>
+        <tr><td><code>kind[name].show_limit_time.disp_interval_sec</code></td><td>Integer seconds; integer 1% of time limit</td><td>Shows the countdown when <code>remaining_seconds % frequency &lt;= interval</code>.</td></tr>
+      </table>
+    </details>
 
- Variant IDs (E/S/F/T suffixes) appear in BOTH tables.
- The original has 83 entries in game_versions across 58 base games.
-    </div>
-
-    <h3>External: title_mode_top &rarr; title_prof</h3>
-    <p>
-      The <code>regionTag</code> field in title_mode_top items links to both
-      <code>game_versions</code> and <code>m2epi.version</code>:
-    </p>
-    <div class="diagram">
-<span class="hl-blue">Cross-file linkage via regionTag</span>
-
-<span class="hl-purple">title_mode_top.psb</span>                  <span class="hl-purple">title_prof.psb</span>
-
-items[0]:                             game_versions:
-  regionTag = "<span class="highlight">GAME000</span>"  ──────────&gt;  "<span class="highlight">GAME000</span>": [0, 0, "MenuItemText..."]
-  name = "THE 功夫"
-  image = 0                           m2epi.version:
-  csize = 0             ──────────&gt;  "<span class="highlight">GAME000</span>": {
-                                        arch: "tg16",
-                                        country: "jp",
-                                        rom: "roms/KungFu_J.pce",
-                                        preamp: 4.08
-                                      }
-
-items[N]:
-  regionTag = "DUMMY"   ──────────&gt;  (no entry needed for DUMMY)
-    </div>
-
-    <p>
-      Every non-DUMMY <code>regionTag</code> in title_mode_top <strong>must</strong> have
-      matching entries in both <code>game_versions</code> and <code>m2epi.version</code>.
-      DUMMY entries are ignored and need no title_prof entry.
-    </p>
-
-    <!-- ===== OPTIONAL ADVANCED SECTIONS ===== -->
-    <h2>Advanced Optional Sections</h2>
-    <p>
-      These sections are checked with <code>"key" in title_prof</code> and are safe to omit entirely.
-      They're used by specific games for ROM patching, sound modifications, and bug emulation.
-    </p>
-
-    <h3>arrange_sound</h3>
-    <pre><code>// Optional: custom audio mixing
-"arrange_sound": {
-  "volume": 0.7   // Audio volume multiplier (default 0.7)
-}</code></pre>
-
-    <h3>original_bug</h3>
-    <pre><code>// Optional: emulate original hardware bugs
-"original_bug": {
-  "mode": 1,
-  "set_list": [
-    {"offset": 1234, "data": [0x00, 0xFF]},
-    ...
-  ]
-}</code></pre>
-    <p>Applies memory patches at runtime to emulate original hardware quirks.</p>
-
-    <h3>default_patch</h3>
-    <pre><code>// Optional: apply ROM patches at load time
-"default_patch": {
-  "mode": 1,
-  "set_list": [
-    {"offset": 5678, "data": [0x90, 0x90]},
-    ...
-  ]
-}</code></pre>
-    <p>Patches ROM data at specified offsets before emulation begins.</p>
-
-    <!-- ===== MINIMAL TEMPLATE ===== -->
-    <h2>Minimal Working Template</h2>
-    <p>
-      The smallest title_prof that m2engage will accept. All field names must match exactly:
-    </p>
+    <h2 id="example">Retail Configuration Example</h2>
+    <p>This excerpt shows real values and their nesting. It is not a standalone minimal package;
+      keep the shared session/controller data and resources used by the stock scripts.</p>
     <pre><code>{
   "root": {
-    "controller": {
-      "init_emu_key": [1,2,2,1,0,0,0,0,1073741824,0,512,1024,0],
-      "init_rapid_speed": 12,
-      "key_combo_text": [
-        {"combo":1, "text":"MenuItemText__TITLE_KEY_COMBO_A"},
-        {"combo":2, "text":"MenuItemText__TITLE_KEY_COMBO_B"},
-        {"combo":4, "text":"MenuItemText__TITLE_KEY_COMBO_C"}
-      ],
-      "rapid_speed_list": [10,12,15,20,30],
-      "use_emu_key": 7
-    },
-    "game_versions": {
-      "GAME100": [0, 0, "MenuItemText__TITLE_GAME_VERSION_000"]
-    },
     "m2epi": {
       "overdrive": 0,
       "preamp": 0.0,
       "sram_support": false,
       "version": {
-        "GAME100": {
+        "GAME000": {
           "arch": "tg16",
           "country": "jp",
-          "preamp": 0.0,
-          "rom": "roms/my_game.pce"
+          "preamp": 4.08,
+          "rom": "roms/KungFu_J.pce",
+          "tg16pad_type": 0
+        },
+        "GAME014": {
+          "arch": "tg16cd",
+          "country": "jp",
+          "preamp": -5.71,
+          "rom": "roms/GingaFukeiDensetsuSapphire.pcd",
+          "tg16_hblank": 100,
+          "tg16_option": 0,
+          "tg16cd_systemcard": "arcade",
+          "tg16pad_type": 5
         }
       }
-    },
-    "player_num": 6,
-    "replay": {
-      "init_replay_record_time": 60,
-      "max_replay_record_time": 60,
-      "replay_record_time_list": [0, 30, 60]
-    },
-    "title": {
-      "dev_name": "PceMini"
-    },
-    "wallpaper": {
-      "datafile": "motion/bg%02d.psb",
-      "max_num": 1
     }
   }
 }</code></pre>
 
-    <!-- ===== SCRIPT ACCESS REFERENCE ===== -->
-    <h2>Script Access Reference</h2>
-    <p>Quick reference of which scripts access which fields:</p>
+    <h2 id="evidence">Evidence and Limits</h2>
+    <p>The audit covers 117 verified stock scripts and 150 attribute access paths, including two commented-out
+      reads. Shared and per-version accesses to the same key are separate paths; this is not a count of
+      150 distinct, working per-game settings. The 25 distinct leaf-field patterns present in the examined retail JSON
+      are covered. Dynamically loaded controllers may add their own contract.</p>
     <table>
-      <tr><th>Field</th><th>Script</th><th>Function</th></tr>
-      <tr>
-        <td><code>player_num</code></td>
-        <td>title_session.nut</td>
-        <td><code>get_player_num()</code></td>
-      </tr>
-      <tr>
-        <td><code>title.dev_name</code></td>
-        <td>title_session.nut</td>
-        <td><code>get_dev_id()</code></td>
-      </tr>
-      <tr>
-        <td><code>controller.use_emu_key</code></td>
-        <td>title_session.nut</td>
-        <td><code>get_use_emu_key()</code></td>
-      </tr>
-      <tr>
-        <td><code>m2epi.version.*</code></td>
-        <td>emulator.nut</td>
-        <td><code>init_emulator()</code> + helpers</td>
-      </tr>
-      <tr>
-        <td><code>game_versions</code></td>
-        <td>game_content.nut</td>
-        <td><code>init_game_content()</code></td>
-      </tr>
-      <tr>
-        <td><code>replay.max_replay_record_time</code></td>
-        <td>emulator.nut</td>
-        <td>Replay recording setup</td>
-      </tr>
-      <tr>
-        <td><code>wallpaper.datafile</code></td>
-        <td>mode_title_select.nut</td>
-        <td>Background loading</td>
-      </tr>
+      <tr><th>Reader / native consumer</th><th>Established behavior</th></tr>
+      <tr><td><code>game_content.nut:975</code>, <code>utils.nut:779</code></td><td>PSB root extraction and recursive specdepend merge.</td></tr>
+      <tr><td><code>emulator.nut:640&ndash;1000</code></td><td>Emulator option lookup, version precedence and native initialization.</td></tr>
+      <tr><td><code>utils.nut:1320&ndash;1390</code>, <code>title_session.nut</code></td><td>Player/input counts, rapid-fire lists, SRAM support and session identity.</td></tr>
+      <tr><td><code>0x7480c / 0x748a8</code></td><td>Audio dB conversion and gain.</td></tr>
+      <tr><td><code>0x2fe78 &rarr; 0x358ac &rarr; 0x38368 &rarr; 0x1c0504</code></td><td>Brightness propagation to the 8-bit RGB tint.</td></tr>
+      <tr><td><code>0x311c4 / 0x311d8</code></td><td>Display subdivisions and Y-setter comparison bug.</td></tr>
+      <tr><td><code>0x1ed4bc</code>, PCE callbacks/dispatchers</td><td>Ignored extra-info, attr/string and RAM-write paths.</td></tr>
     </table>
-
-    <!-- ===== STATUS ===== -->
-    <h2>Status</h2>
-    <div class="box box-success" style="border-color: var(--success)">
-      <strong style="color: var(--success)">Fully working</strong>
-      Custom title_prof generation is validated. The key discovery was that the native C++ parser
-      requires exact field names &mdash; using <code>fps</code> instead of <code>init_replay_record_time</code>,
-      or <code>motion_file</code> instead of <code>datafile</code>, causes a silent crash.
-      All 7 sections are required but most sub-fields within them are optional (checked with
-      <code>"key" in obj</code> pattern in scripts).
-    </div>
-
+    <p>Exact analog binding enum values, medal notification positions and the active use/unit of arranged-sound
+      fadeout remain unresolved. Targeted native probes establish particular branches and data flow;
+      they do not establish visual fixes, audio quality or performance for every game.</p>
   </main>
 </body>
 </html>

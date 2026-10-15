@@ -121,7 +121,7 @@
       <tr>
         <td><code>initfileSave()</code></td>
         <td><code>void &rarr; void</code></td>
-        <td>Create the save initialization marker file (<code>save/.game_noinit</code>). Called after the first-ever save state is created.</td>
+        <td>Create the save initialization marker file (<code>save/.game_noinit</code>). Called after the first saved state, and by autosave when backup flags or SRAM differ from initialized defaults.</td>
       </tr>
       <tr>
         <td><code>stateFileExist(fileid)</code></td>
@@ -238,8 +238,7 @@ for (local i = 0; i &lt; 4; i++) {
     <h3>initfileSave()</h3>
 
     <p>
-      Creates the <code>save/.game_noinit</code> sentinel file, marking the save directory
-      as initialized (at least one save state has been created). Called from
+      Creates the <code>save/.game_noinit</code> sentinel file. The pause menu calls it after saving a state; <code>SystemData::TryAutosave()</code> also creates or deletes it depending on whether backup flags or SRAM differ from initialized defaults (<code>systemdata_saveload.nut</code>). It therefore does not prove that a save state exists. Called from
       <code>pause_main.nut</code> after the first save:
     </p>
 

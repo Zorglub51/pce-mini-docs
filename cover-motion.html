@@ -197,15 +197,14 @@ m_pkgselect_motion[i].setVariable("pkg", image_index);</code></pre>
   }],
   "parameter": [{
     "id": "pkg",
-    "division": 50,     // Total slots (always 50)
+    "division": 50,     // This example resource uses 50 timeline divisions
     "rangeEnd": 50      // Range end (matches division)
   }],
   "lastTime": 51        // = max(time) + 1
 }</code></pre>
 
     <p>
-      The <code>pkg</code> parameter acts as a timeline index. When set to value N, the motion
-      engine jumps to <code>time=N</code> in the frameList, displaying the icon at that time.
+      In this resource, the <code>pkg</code> parameter maps the selected value to the cover timeline. The division, range, and timeline lengths belong to each motion resource; 50 is not a universal engine limit. For the direct mapping shown here, value N selects <code>time=N</code> and the icon at that time.
     </p>
 
     <div class="diagram">

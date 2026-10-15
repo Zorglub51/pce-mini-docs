@@ -48,27 +48,25 @@
 
     <h2>Boot Sequence</h2>
     <p>
-      When m2engage starts, it goes through a well-defined initialization sequence.
-      Understanding this sequence is critical for debugging custom game packs &mdash;
-      if your files cause a crash, the point of failure tells you which file is broken.
+      The stock scripts expose the following initialization stages. A failure near a
+      stage helps narrow the investigation, but does not identify a broken file by itself.
+      In particular, <code>title_prof</code> is interpreted by Squirrel after generic PSB
+      loading; it is not a separate native parser with a fixed seven-section schema.
     </p>
 
     <div class="diagram">
 <span class="hl-blue">m2engage boot sequence</span>
 
-  1. <span class="highlight">Platform check</span>
-     |- Reads /dev/i2c-1 EEPROM for hardware validation
-     |- Accesses /tmp/sunxi_dump (patched path)
-     |- On failure: crash with exit 99 (SIGBUS)
-     \- <span class="hl-dim">No PSB files read yet</span>
+  1. <span class="highlight">Native platform and runtime initialization</span>
+     \- Creates the environment used by the Squirrel scripts
 
-  2. <span class="highlight">Native init</span>
-     |- Loads <span class="hl-purple">title_prof.psb.m</span>     <span class="hl-dim">&lt;-- crash here = title_prof is bad</span>
-     |- Reads system_prof.psb
-     \- Initializes Squirrel VM
+  2. <span class="highlight">Script bootstrap</span>
+     \- Enters the stock initialization scripts
 
   3. <span class="hl-green">init_system_1st()</span>           <span class="hl-dim">[Squirrel]</span>
-     |- Reads game versions from title_prof
+     |- init_game_content() loads system_prof and title_prof resources
+     |- _get_title_prof() reads .root and merges title_prof_specdepend
+     |- Reads game_versions from the merged profile
      |- Registers all GAME### region tags
      |- 83 versions loaded (34 JP + 24 US + variants)
      \- <span class="hl-dim">Prints: "init_system_1st() : start/done"</span>
@@ -102,11 +100,11 @@
     </div>
 
     <div class="box box-warning">
-      <strong>Diagnostic: Where did it crash?</strong>
+      <strong>Read diagnostics as clues</strong>
       <ul style="margin-top:8px; margin-bottom:0">
-        <li><strong>No SQ output, no sound</strong> &rarr; Crash in step 2 (native init). Check <code>title_prof.psb.m</code></li>
-        <li><strong>SQ output, music, black screen</strong> &rarr; Crash in step 8-9. Check <code>title_mode_top.psb.m</code> or motion PSBs</li>
-        <li><strong>Normal init, s_titleNum printed</strong> &rarr; Issue in carousel/motion. Check sort indices and motion PSBs</li>
+        <li><strong>No script output</strong>: check platform startup, resource loading and whether diagnostics are available. This alone does not prove that <code>title_prof</code> is malformed.</li>
+        <li><strong>Music with a black menu</strong>: inspect script errors, game counts, sort ranks and motion resources.</li>
+        <li><strong><code>s_titleNum</code> printed</strong>: the menu read its count; later carousel or resource operations can still fail.</li>
       </ul>
     </div>
 
@@ -139,7 +137,8 @@
       PSB files are loaded by scripts using <code>util_load_config()</code>, which takes
       a path like <code>"config/title_mode_top.psb"</code>. The <code>conv_path()</code>
       function prepends either <code>system/</code> or <code>040/</code> depending on
-      the resource type. Configs are cached &mdash; each PSB is loaded only once.
+      the resource type. Configs are normally cached in release builds; the loader also
+      has a debug-only <code>force_reload</code> path.
     </p>
     <pre><code>// Squirrel: loading a config
 m_config = ::util_load_config( ::conv_path("config/title_mode_top.psb") );
@@ -188,21 +187,41 @@ s_titleNum = m_config["titleNum"];</code></pre>
     </ol>
     <p>
       This means you can override individual files by placing them in the extracted directory
-      structure without rebuilding the entire alldata archive.
+      structure without rebuilding the entire alldata archive. This file-source priority
+      is separate from <code>conv_path()</code>, which chooses a title or system path by
+      naming rules, rather than by testing which of those two directories contains a file.
     </p>
 
     <h2>Title Packs</h2>
     <p>
-      The <code>040/</code> directory is for dev_id 40 (PC Engine / Japan). The system
-      also supports dev_id 41 (TurboGrafx-16 / USA), but in the PCE Mini, both JP and US
-      lineups are stored in the same <code>040/</code> pack. The <code>system_prof.psb</code>
-      maps dev_ids to title packs:
+      In the examined Japanese package, <code>040/</code> is the pack for
+      <code>dev_id=40</code> (<code>PceMini</code>). Its two menu lineups are stored together;
+      choosing the TG16 lineup does not switch to directory <code>041/</code>.
+      The stock <code>system_prof.psb</code> also declares <code>dev_id=41</code>
+      as <code>PceMiniUSA</code>. The relevant list entries are:
     </p>
-    <pre><code>// system_prof.psb -> title_list
-{
-  "40": { "dev_name": "PceMini",    "dev_id": 40 },
-  "41": { "dev_name": "TgMini",     "dev_id": 41 }
-}</code></pre>
+    <pre><code>// system_prof.psb -> root.title_list (other fields omitted)
+[
+  { "dev_name": "PceMini",    "dev_id": "40" },
+  { "dev_name": "PceMiniUSA", "dev_id": "41" }
+]</code></pre>
+
+    <h2>Data Flow: Game Launch</h2>
+    <p>
+      The selected <code>regionTag</code> connects the menu item to
+      <code>title_prof.m2epi.version</code>. <code>arch</code> selects the native
+      <code>tg16</code>, <code>tg16cd</code> or <code>sgx</code> core, which loads
+      <code>rom</code>. Shared options are overridden by the selected variant where
+      the reader supports that rule. The menu separately supplies
+      <code>ScreenMode</code> and <code>EmuOfsX/Y</code> for source-image cropping.
+      Menu <code>players</code> describes the title card; it does not configure the
+      runtime input count or controller protocol.
+    </p>
+    <p>
+      See <a href="title-prof.html">title_prof</a> for option precedence, hardware
+      settings and inactive fields, and <a href="title-mode-top.html">title_mode_top</a>
+      for menu fields and the core-specific crop tables.
+    </p>
   </main>
 </body>
 </html>

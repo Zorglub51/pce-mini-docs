@@ -375,7 +375,7 @@ while (rsc.loading) { yield null; }
 local indicator = Indicator(layer, rsc.find(font_path));
 indicator.visible = true;
 indicator.setRecognizeTag(true);       // enable tag parsing in text
-indicator.fontColor = 0xFFFFFFFF;      // white (ARGB)
+indicator.fontColor = 0xFFFFFFFF;      // white (RRGGBBAA)
 indicator.setAlignment(CONSOLE.ALIGNMENT_CENTER);
 indicator.print("Hello World");</code></pre>
 
@@ -385,7 +385,7 @@ indicator.print("Hello World");</code></pre>
       <tr><td><code>print(text)</code></td><td>Set and display text string</td></tr>
       <tr><td><code>setText(text) / getText()</code></td><td>Alternative set/get for text</td></tr>
       <tr><td><code>setTextMaxLength(n)</code></td><td>Limit maximum characters displayed</td></tr>
-      <tr><td><code>fontColor</code></td><td>Text color (ARGB integer, e.g., <code>0xFFFFFFFF</code>)</td></tr>
+      <tr><td><code>fontColor</code></td><td>Text color (RRGGBBAA integer, e.g., <code>0xFFFFFFFF</code> = white, <code>0xC0C0C0FF</code> = grey)</td></tr>
       <tr><td><code>setFontColor(r, g, b, a)</code></td><td>Set color with separate channels</td></tr>
       <tr><td><code>setFontScale(scale)</code></td><td>Uniform font size scale</td></tr>
       <tr><td><code>setFontScaleX(s) / setFontScaleY(s)</code></td><td>Per-axis font scale</td></tr>
@@ -395,10 +395,33 @@ indicator.print("Hello World");</code></pre>
       <tr><td><code>getWidth() / getHeight()</code></td><td>Measured text dimensions</td></tr>
     </table>
 
+    <h3>fontColor Format</h3>
+    <p>
+      The <code>fontColor</code> property is stored as a 32-bit <strong>RRGGBBAA</strong> integer
+      (red in the high byte, alpha in the low byte). Scripts read and write this directly:
+    </p>
+    <pre><code>indicator.fontColor = 0xFFFFFFFF;      // white, full alpha
+indicator.fontColor = 0xC0C0C0FF;      // light grey, full alpha
+indicator.fontColor = 0x808080FF;      // dark grey (greyed-out items)
+
+// Alpha manipulation (mask off alpha, set new opacity):
+parts.fontColor = (parts.fontColor &amp; ~0xFF) | opa;</code></pre>
+
+    <h3>Inline Color Tags in Resources (<code>recognizeTag</code>)</h3>
+    <p>
+      Stock resources contain inline color syntax such as <code>#{color,000000FF}</code>,
+      <code>#{color,808080FF}</code>, and <code>#{color,clear}</code>, and scripts can enable
+      tag recognition with <code>setRecognizeTag(true)</code>. Some resources also contain
+      seven-digit values such as <code>#{color,00000FF}</code>.
+      These are observed resource strings. The exact native handling of the reset form and
+      non-eight-digit values has not been traced here; no normalization or unsupported-tag
+      rule should be inferred from a replacement renderer.
+    </p>
+
     <h3>Alignment Constants</h3>
-    <pre><code>CONSOLE.ALIGNMENT_LEFT
-CONSOLE.ALIGNMENT_CENTER
-CONSOLE.ALIGNMENT_RIGHT</code></pre>
+    <pre><code>CONSOLE.ALIGNMENT_LEFT     // 0
+CONSOLE.ALIGNMENT_CENTER   // 1
+CONSOLE.ALIGNMENT_RIGHT    // 2</code></pre>
 
     <p>Indicator inherits all Layer visual properties (opacity, visible, color, etc.).</p>
 
@@ -478,7 +501,7 @@ textLayer.priority = PRI_TEXT;
 local indicator = Indicator(textLayer, rsc.find(font_path));
 indicator.visible = true;
 indicator.setRecognizeTag(true);
-indicator.fontColor = 0xFFFFFFFF;
+indicator.fontColor = 0xFFFFFFFF;      // RRGGBBAA
 indicator.setAlignment(CONSOLE.ALIGNMENT_CENTER);
 indicator.print("R-TYPE");</code></pre>
 

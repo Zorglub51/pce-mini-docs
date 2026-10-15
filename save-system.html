@@ -64,15 +64,13 @@
     <h2 id="overview">1. Architecture Overview</h2>
 
     <p>
-      m2engage uses a two-level save system managed entirely by native C++ code.
-      Squirrel scripts interact with it through the <code>g_systemdata</code> global
-      object and the <code>BackupStatedata</code> class.
+      m2engage combines Squirrel save-management code with native storage and emulator bindings. <code>g_systemdata</code> is an instance of the Squirrel <code>SystemData</code> class (<code>systemdata.nut</code>), and <code>BackupStatedata</code> is defined in <code>backup_statedata.nut</code>. They coordinate native <code>Struct</code>, <code>BackupManager</code>, backup segments, and emulator operations.
     </p>
 
     <div class="diagram">
 <span class="hl-blue">Save System Architecture</span>
 
-  <span class="highlight">g_systemdata</span>  (native C++ SystemData object)
+  <span class="highlight">g_systemdata</span>  (Squirrel SystemData object)
     |
     |-- <span class="hl-green">System Backup Manager</span>
     |     |-- SYSTEM_DATA     (1 slot)   &larr; system-wide settings
@@ -241,10 +239,10 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       </tr>
     </table>
 
-    <h3>Meta Files (404 bytes)</h3>
+    <h3>Meta Files</h3>
     <p>
       Each <code>meta_*.bin</code> is a small PSBv3 structure containing save metadata.
-      All meta files are exactly 404 bytes regardless of the segment type:
+      The examined metadata files are 404 bytes; their structure and digest location should be parsed rather than inferred from that observed size:
     </p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -261,7 +259,7 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       <tr>
         <td><code>OriginalSize</code></td>
         <td>integer</td>
-        <td>Uncompressed size (same as FileSize &mdash; saves are not compressed)</td>
+        <td>Original payload size. In the examined raw backup files it equals <code>FileSize</code>; this does not imply that every buffer nested inside the payload is uncompressed.</td>
       </tr>
       <tr>
         <td><code>FileVersion</code></td>
@@ -271,7 +269,7 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       <tr>
         <td><code>Digest</code></td>
         <td>16 bytes</td>
-        <td>Integrity checksum of the data file</td>
+        <td>MD5 digest of the complete corresponding data file</td>
       </tr>
       <tr>
         <td><code>CryptMagic</code></td>
@@ -308,13 +306,12 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       </tr>
       <tr>
         <td><strong>Size</strong></td>
-        <td>Up to 8 KB per game (compressed in TITLE_DATA)</td>
-        <td>256 KB (HuCard) or 1.5 MB (CD)</td>
+        <td>An 8,192-byte shared image buffer per 8,448-byte SRAM block; compression depends on the adapter setting</td>
+        <td>Reserved emulator payload: 256 KiB (HuCard/SGX) or 1.5 MiB (CD), plus headers and thumbnail storage</td>
       </tr>
       <tr>
         <td><strong>Per save slot?</strong></td>
-        <td>Yes &mdash; each of the 4 save slots captures an independent compressed
-            SRAM snapshot</td>
+        <td>Four tagged SRAM entries share one image buffer. Their count does not establish a one-to-one mapping to the four pause-menu save-state slots.</td>
         <td>Yes &mdash; each slot is a separate <code>data_0XX_YYYY.bin</code> file</td>
       </tr>
       <tr>
@@ -327,11 +324,8 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
     </table>
 
     <div class="box box-info">
-      <strong>Both are saved together</strong>
-      When the user creates a save state from the pause menu, m2engage writes both an
-      emulator state file (the hardware snapshot) and updates the SRAM entry in TITLE_DATA
-      (the game&rsquo;s own save data at that moment). Loading a save state restores both:
-      the exact screen and audio <em>and</em> the game&rsquo;s internal save progress.
+      <strong>Separate hardware state and SRAM management</strong>
+      An emulator state captures the emulated machine. The separate <code>SystemDataSramData</code>/<code>EmuSram</code> path synchronizes SRAM only when <code>sram_support</code> is enabled. The examined stock profile defaults this flag to <code>false</code>, so the allocated SRAM bank alone does not prove that the game uses that synchronization path. During state loading, profile flags can preserve the current SRAM or skip its comparison. See <a href="title-prof.html#sram">SRAM profile parameters</a>.
     </div>
 
     <h3>Data File Layout &mdash; Game Saves (Types 011/012)</h3>
@@ -370,7 +364,7 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       </tr>
       <tr>
         <td>012 (HuCard)</td>
-        <td>876 KB</td>
+        <td>895,848 bytes</td>
         <td>256 KB</td>
         <td><code>0x040300</code></td>
         <td>225 KB</td>
@@ -378,7 +372,7 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
       </tr>
       <tr>
         <td>011 (CD)</td>
-        <td>2.1 MB</td>
+        <td>2,206,568 bytes</td>
         <td>1.5 MB</td>
         <td><code>0x180300</code></td>
         <td>225 KB</td>
@@ -387,11 +381,8 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
     </table>
 
     <div class="box box-info">
-      <strong>Why are CD saves 6&times; larger?</strong>
-      CD-ROM&sup2; / Super CD games have significantly more hardware to snapshot:
-      the Super System Card provides 256 KB of RAM, plus CD ADPCM audio buffers
-      and additional I/O state. HuCard games only need the base PCE&rsquo;s 8 KB work RAM
-      plus VRAM and audio registers.
+      <strong>Why is the CD state buffer larger?</strong>
+      The templates reserve <code>0x180000</code> bytes for CD emulator data and <code>0x40000</code> for HuCard/SGX data. These are reserved capacities, not measured compressed state sizes or a sixfold ratio between complete save files. CD configurations also include disc-system RAM, ADPCM state, and, with an Arcade Card, additional RAM.
     </div>
 
     <h3>Data File Layout &mdash; Title Data (Type 008)</h3>
@@ -403,79 +394,35 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
     </p>
 
     <p>
-      At <strong>1.29 MB</strong>, it is surprisingly large for a settings file. The breakdown
-      reveals why:
+      In the examined stock layout, the file is <strong>1,291,396 bytes</strong>.
+      The first <code>0x5e84</code> bytes contain settings, flags, work areas, and per-game configuration.
+      The SRAM array then contains 150 complete blocks of <strong>8,448 bytes</strong> each.
+      These offsets apply to that schema; changing the struct template changes the binary layout.
     </p>
-
     <table>
-      <tr><th>Section</th><th>Size</th><th>Content</th></tr>
-      <tr>
-        <td>Header</td>
-        <td>60 B</td>
-        <td>Struct version</td>
-      </tr>
-      <tr>
-        <td>Controller settings</td>
-        <td>976 B</td>
-        <td>Button mapping for 8 pads (16 keys + rapid speed + shortcuts each)</td>
-      </tr>
-      <tr>
-        <td>Display settings</td>
-        <td>60 B</td>
-        <td>Screen mode, resolution, scanline, smoothing, 3D options</td>
-      </tr>
-      <tr>
-        <td>Sound settings</td>
-        <td>52 B</td>
-        <td>Master volume, channel mode, arrange BGM</td>
-      </tr>
-      <tr>
-        <td>Save / Network / Misc</td>
-        <td>~200 B</td>
-        <td>Autosave, replay time, region tag, etc.</td>
-      </tr>
-      <tr>
-        <td>Backup flags</td>
-        <td>44 B</td>
-        <td>Last played game, sort type, UI state, 100 lock flags</td>
-      </tr>
-      <tr>
-        <td>Medal system</td>
-        <td>512 B</td>
-        <td>Achievement tracking work buffers</td>
-      </tr>
-      <tr>
-        <td>Per-game settings (&times;150)</td>
-        <td>19 KB</td>
-        <td>128 bytes per game: difficulty, control options, preset type</td>
-      </tr>
-      <tr class="highlight-row">
-        <td><strong>SRAM data (&times;150)</strong></td>
-        <td><strong>1,237 KB</strong></td>
-        <td>4 SRAM entries (64B each) + 8 KB image buffer per game</td>
-      </tr>
-      <tr>
-        <td><strong>Total</strong></td>
-        <td><strong>~1,260 KB</strong></td>
-        <td></td>
-      </tr>
+      <tr><th>Region</th><th>File offset</th><th>Size</th></tr>
+      <tr><td>Settings and work areas</td><td><code>0x0000</code></td><td>24,196 bytes</td></tr>
+      <tr><td>SRAM blocks (150)</td><td><code>0x5e84</code></td><td>1,267,200 bytes</td></tr>
     </table>
-
-    <div class="box box-warning">
-      <strong>98% is SRAM</strong>
-      The SRAM data section dominates the file. Each of the 150 possible game slots gets a
-      pre-allocated <code>struct_sram_data</code> containing 4 <code>struct_sram_entry</code>
-      headers (one per save state slot, with offset/size_enc/size_dec pointing into the buffer)
-      and an 8,192-byte shared image buffer. The 4 entries store independently compressed SRAM
-      snapshots packed into this buffer, so each save state slot preserves the SRAM as it was
-      at save time. This space is pre-allocated for all 150 games regardless of whether they
-      have been played: 150 &times; 8,448 = 1,237 KB.
+    <p>
+      One SRAM block contains four 64-byte <code>struct_sram_entry</code> headers and an 8,192-byte
+      shared image buffer. Each header stores an 8-byte tag, an image offset, encoded and decoded sizes,
+      and 44 padding bytes. Entry offsets refer into that shared image buffer. The full block size is
+      <code>4 &times; 64 + 8192 = 8448</code> bytes; the buffer is not four separate 8 KB images.
+      The schema preallocates all 150 blocks, including unplayed games.
+    </p>
+    <div class="box box-info">
+      <strong>SRAM compression is not encryption</strong>
+      <code>m2epi.sram_crypted</code> selects zlib compression/decompression of SRAM buffers, despite its name.
+      It is separate from MZS encryption and from metadata <code>CryptMagic</code>.
+      <code>sram_common</code> and <code>systemdata_sram_data_no</code> select the working SRAM bank;
+      <code>sram_support</code> enables the Squirrel synchronization path and does not add or remove
+      hardware RAM in the emulated machine.
     </div>
 
-    <h4>Verified Settings Offsets</h4>
+    <h4>Observed Settings Offsets</h4>
     <p>
-      The following binary offsets within <code>data_008_0000.bin</code> have been empirically
-      verified. These can be used to read settings directly from the raw file:
+      The following offsets describe the examined stock <code>data_008_0000.bin</code> layout. Interpret each field through its matching struct schema; offsets are not universal across modified templates.
     </p>
 
     <table>
@@ -484,17 +431,14 @@ save/meta_{TYPE:03d}_{SLOT:04d}.bin    &larr; metadata (404 bytes, PSB format)</
         <td>0=Normal, 1=Original Only, 2=Fit, 3=Full, 4=Original, 5=Manual</td></tr>
       <tr><td><code>0x0844</code></td><td>Display: size_x</td><td>uint32</td><td></td></tr>
       <tr><td><code>0x0848</code></td><td>Display: size_y</td><td>uint32</td><td></td></tr>
-      <tr><td><code>0x085C</code></td><td>Display: ratio</td><td>uint32</td><td>0=Off, 1=On</td></tr>
-      <tr><td><code>0x0860</code></td><td>Display: scanline</td><td>uint32</td><td>0=Off, 1=On</td></tr>
-      <tr><td><code>0x0864</code></td><td>Display: smoothing</td><td>uint32</td><td>0=Off, 1=On</td></tr>
       <tr><td><code>0x0868</code></td><td>Display: manual_size_x</td><td>uint32</td><td></td></tr>
       <tr><td><code>0x086C</code></td><td>Display: manual_size_y</td><td>uint32</td><td></td></tr>
       <tr><td><code>0x08C0</code></td><td>Sound: volume_master</td><td>uint32</td><td>0&ndash;100</td></tr>
       <tr><td><code>0x08C4</code></td><td>Sound: channel</td><td>uint32</td><td>0=Mono, 1=Stereo</td></tr>
       <tr><td><code>0x08C8</code></td><td>Sound: arrange_bgm</td><td>uint32</td><td>0=Off, 1=On</td></tr>
       <tr><td><code>0x0900</code></td><td>Save: autosave</td><td>uint32</td><td>0=Off, 1=On</td></tr>
-      <tr><td><code>0x0908</code></td><td>Save: replay_record_time</td><td>uint32</td><td>seconds</td></tr>
-      <tr><td><code>0x0948</code></td><td>Misc: game_regionTag</td><td>char[15]</td><td>e.g. "GAME031"</td></tr>
+      <tr><td><code>0x0908</code></td><td>Save: replay_record_time</td><td>uint32</td><td>minutes; stored directly from <code>init_replay_record_time</code>, not a menu index</td></tr>
+      <tr><td><code>0x0948</code></td><td>Misc: game_regionTag</td><td>char[15]</td><td>e.g. "GAME031"; a 15-byte buffer leaves at most 14 bytes plus the terminating zero</td></tr>
       <tr><td><code>0x0984</code></td><td>Flags: last_dev_id</td><td>uint32</td><td>40=PCE(JP), 41=TG16(US)</td></tr>
       <tr><td><code>0x0988</code></td><td>Flags: last_file_id_state</td><td>uint32</td><td></td></tr>
       <tr><td><code>0x0998</code></td><td>Flags: last_sortType</td><td>uint32</td><td>0=Default, 1=Alpha, 2=Date, 3=Genre</td></tr>
@@ -659,8 +603,7 @@ screenshot_{rom_name}_{YYYYMMDD}_{HHMMSS}.bmp</code></pre>
       </tr>
       <tr>
         <td><code>save/.game_noinit</code></td>
-        <td>Sentinel file. If present, the save directory is considered initialized
-            (skips first-run save data creation).</td>
+        <td>Initialization marker managed by the pause menu and autosave. Its presence can result from changed backup flags or SRAM as well as a saved emulator state.</td>
       </tr>
     </table>
 
@@ -836,12 +779,12 @@ screenshot_{rom_name}_{YYYYMMDD}_{HHMMSS}.bmp</code></pre>
   <span class="highlight">_05_thumbnail</span>
     |-- _00_width            Thumbnail width (pixels)
     |-- _01_height           Thumbnail height (pixels)
-    \-- _02_pixels           Thumbnail image data (raw RGBA)
+    \-- _02_pixels           Thumbnail image data (230,400 bytes: 320 &times; 240 RGB)
     </div>
 
     <h3>Save State Operations</h3>
     <p>
-      The <code>BackupStatedata</code> class (native C++) handles all state save/load operations:
+      The Squirrel <code>BackupStatedata</code> class coordinates native emulator capture/restore and backup-segment operations:
     </p>
 
     <table>
@@ -935,7 +878,7 @@ screenshot_{rom_name}_{YYYYMMDD}_{HHMMSS}.bmp</code></pre>
     <h2 id="autosave">7. Autosave System</h2>
 
     <p>
-      Autosave is triggered through the native <code>g_systemdata</code> object.
+      Autosave is coordinated by the Squirrel <code>g_systemdata</code> object and its <code>TryAutosave()</code> method in <code>systemdata_saveload.nut</code>.
       It saves system and title data &mdash; <strong>not</strong> emulator save states
       (those require explicit user action).
     </p>
@@ -989,11 +932,8 @@ screenshot_{rom_name}_{YYYYMMDD}_{HHMMSS}.bmp</code></pre>
 ::g_systemdata.TryAutosave(true);           // save immediately</code></pre>
 
     <div class="box box-danger">
-      <strong>TryAutosave hangs with non-standard dev_id</strong>
-      When <code>s_current_title_dev_id</code> is set to a custom value (e.g., 42 for a custom pack),
-      <code>TryAutosave()</code> can hang or crash. The native save code doesn't handle
-      non-standard dev_ids well. <strong>Always reset dev_id to 40 before any autosave
-      operation</strong>, then re-apply the custom dev_id afterward.
+      <strong>Title identity and initialized backup structures must agree</strong>
+      Changing the active <code>dev_id</code> also changes title/profile lookup and resource paths. An incomplete title definition or inconsistent initialized backup structures can therefore break saving. The stock scripts do not establish a general rule that every custom ID fails, or that temporarily changing it to <code>40</code> is a safe universal fix.
     </div>
 
     <!-- ============================================================ -->

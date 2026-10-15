@@ -43,8 +43,18 @@
   <main>
     <h1>Building Game Packs</h1>
     <p class="page-desc">
-      Step-by-step guide to creating a custom game pack for the PCE Mini.
+      The standalone XML pack-builder workflow, with links to the original engine's configuration reference.
     </p>
+
+    <div class="box box-info">
+      <strong>Tool format and engine format are different contracts</strong>
+      This page records the standalone <code>build_gamepack.py</code> XML interface
+      used in earlier pack-building experiments; the builder is not distributed with
+      this documentation site. The engine reads PSB resources through its stock scripts;
+      XML field names, assigned game IDs and builder defaults are not native engine
+      limits. See <a href="title-prof.html">title_prof</a> and
+      <a href="title-mode-top.html">title_mode_top</a> for the complete game settings.
+    </div>
 
     <h2>XML Game List Format</h2>
     <p>
@@ -86,7 +96,7 @@
       <tr><td><code>rom</code></td><td>Yes</td><td>&mdash;</td><td>ROM filename</td></tr>
       <tr><td><code>cover</code></td><td>Yes</td><td>&mdash;</td><td>Cover PNG path (relative to XML)</td></tr>
       <tr><td><code>arch</code></td><td>No</td><td>tg16</td><td><code>tg16</code> | <code>tg16cd</code> | <code>sgx</code></td></tr>
-      <tr><td><code>players</code></td><td>No</td><td>1</td><td>1 or 2</td></tr>
+      <tr><td><code>players</code></td><td>No</td><td>1</td><td>Menu player-count label; stock titles also use 3 and 5. Does not select pad protocol or runtime input count.</td></tr>
       <tr><td><code>preamp</code></td><td>No</td><td>0.0</td><td>Audio preamp in dB</td></tr>
       <tr><td><code>systemcard</code></td><td>No</td><td>&mdash;</td><td><code>super</code> | <code>arcade</code> (CD only)</td></tr>
       <tr><td><code>ccolor</code></td><td>No</td><td>auto</td><td>Box color override (0-3)</td></tr>
@@ -149,15 +159,15 @@ cd m2engage-pce-pi5 && ./run.sh</code></pre>
     <div class="card-grid">
       <div class="card">
         <h4 style="color: var(--success)">title_mode_top</h4>
-        <p>Fully working. Custom game lists with arbitrary game counts render correctly.
+        <p>Custom game lists render when counts fit the stock 50-slot sections.
         Sort indices, DUMMY entries, and section mirroring all validated.</p>
       </div>
       <div class="card">
         <h4 style="color: var(--success)">title_prof</h4>
-        <p>Fully working. The native parser requires exact field names:
-        <code>replay</code> needs <code>init_replay_record_time</code> /
-        <code>max_replay_record_time</code> / <code>replay_record_time_list</code>;
-        <code>wallpaper</code> needs <code>datafile</code> / <code>max_num</code>.</p>
+        <p>Use the stock <code>root</code> wrapper and the names expected by the
+        Squirrel readers. There is no separate native seven-section schema.
+        <code>replay</code> record-time values are minutes; per-game options inherit
+        shared defaults only where the relevant reader implements that rule.</p>
       </div>
       <div class="card">
         <h4 style="color: var(--success)">Cover Motion PSBs</h4>
@@ -176,17 +186,17 @@ cd m2engage-pce-pi5 && ./run.sh</code></pre>
     <ol>
       <li><strong>Round-trip test</strong>: Extract original &rarr; rebuild with zero changes &rarr; verify it works</li>
       <li><strong>Single file test</strong>: Replace only one PSB at a time, keep others original</li>
-      <li><strong>title_mode_top first</strong>: This is the safest to modify (loaded by scripts, good error tolerance)</li>
-      <li><strong>title_prof last</strong>: This crashes m2engage if malformed (native parser, no script fallback)</li>
+      <li><strong>Menu validation</strong>: Check active counts, four section offsets, sort permutations and cover indices.</li>
+      <li><strong>Profile validation</strong>: Check <code>root</code>, selected version tags, types, ROM paths and core-specific options. Both files use generic PSB loading followed by script readers.</li>
     </ol>
 
     <div class="box box-info">
       <strong>Diagnostic checklist</strong>
       <ul style="margin-top:8px; margin-bottom:0">
-        <li>No SQ output, no sound &rarr; <code>title_prof.psb.m</code> is broken</li>
-        <li>SQ output, music, black screen &rarr; <code>title_mode_top</code> issue (check sor_* values!)</li>
+        <li>No script output &rarr; inspect startup and resource errors; this alone does not identify a broken profile.</li>
+        <li>Script output, music, black screen &rarr; check menu counts, sort ranks and motion resources.</li>
         <li>SQ output, visuals, wrong covers &rarr; Motion PSB issue</li>
-        <li>Everything works but game doesn't launch &rarr; ROM path in title_prof is wrong</li>
+        <li>Menu works but a game does not launch &rarr; verify selected tag, <code>arch</code>, ROM path/format and core options.</li>
       </ul>
     </div>
 

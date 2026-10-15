@@ -43,17 +43,17 @@
   <main>
     <h1>Squirrel VM &amp; Filesystem</h1>
     <p class="page-desc">
-      Complete reference for filesystem access, resource loading, and I/O functions
+      Reference for identified filesystem access, resource loading, and I/O functions
       available to Squirrel scripts running inside m2engage.
     </p>
 
-    <div class="box box-warning">
-      <strong>No Direct File I/O</strong>
-      The Squirrel VM in m2engage has <strong>no direct filesystem access</strong>.
-      Standard Squirrel I/O functions (<code>dofile</code>, <code>loadfile</code>,
-      <code>compilestring</code>, <code>io.open</code>) are stripped from the VM.
-      All file operations go through native C++ bindings exposed as global functions
-      or class methods.
+    <div class="box box-info">
+      <strong>Use the engine bindings for resource and save access</strong>
+      The examined stock scripts load PSB resources with <code>Resource</code> and scripts with
+      <code>util_load_script()</code>. Standard file-I/O helpers such as <code>dofile</code> and
+      <code>loadfile</code> are absent from the identified bindings. <code>compilestring</code>,
+      however, is present in the native base-function table and compiles source already in memory.
+      These API observations do not establish a filesystem or network sandbox.
     </div>
 
     <h2>Table of Contents</h2>
@@ -106,7 +106,7 @@ conv_path("motion/bg01.psb", 42)          // &rarr; "042/motion/bg01.psb"</code>
       </tr>
       <tr>
         <td><code>forceAbsolutePath</code></td>
-        <td>Paths starting with these prefixes are always <code>system/</code></td>
+        <td>Already rooted paths with these prefixes are preserved</td>
         <td><code>["system/"]</code></td>
       </tr>
       <tr>
@@ -116,18 +116,17 @@ conv_path("motion/bg01.psb", 42)          // &rarr; "042/motion/bg01.psb"</code>
       </tr>
       <tr>
         <td><code>titleOnlyFile</code></td>
-        <td>Specific filenames that are always title-only</td>
-        <td><code>[]</code> (empty)</td>
+        <td>Path prefixes that select title-only resources</td>
+        <td>Includes <code>config/command_list.psb</code>, <code>motion/emu_screen.psb</code>, <code>motion/bg</code>, and other stock title resources</td>
       </tr>
     </table>
     <p>
-      For paths not matching any rule, <code>conv_path()</code> first checks
-      <code>{dev_id}/</code>, then falls back to <code>system/</code>.
+      A basename beginning with <code>title_</code> also selects <code>{dev_id}/</code>. Otherwise, an unqualified path resolves to <code>system/</code>. Already qualified numeric title paths are preserved. This function selects a path from naming rules; it does not check whether the file exists and does not try both directories.
     </p>
 
     <div class="box box-danger">
       <strong>Gotcha: "script/" resolves to system/</strong>
-      The <code>script/</code> prefix is NOT in <code>titleOnlyDir</code>, so
+      For an unqualified filename that does not begin with <code>title_</code>, the <code>script/</code> prefix is not in <code>titleOnlyDir</code>, so
       <code>conv_path("script/pack_config.nut")</code> resolves to
       <code>system/script/pack_config.nut</code>, not <code>042/script/pack_config.nut</code>.
       To load title-specific scripts, build the path explicitly:
@@ -136,8 +135,7 @@ conv_path("motion/bg01.psb", 42)          // &rarr; "042/motion/bg01.psb"</code>
 
     <h3>conv_checked_path(short_path, dev_id, bDeleteExtM)</h3>
     <p>
-      Like <code>conv_path()</code> but verifies the file actually exists.
-      Returns <code>null</code> if the file is not found.
+      Applies <code>conv_path()</code>, then checks the selected path in mounted archives and the content filesystem. Returns <code>null</code> if neither lookup finds it; it does not retry the other title/system path. With <code>bDeleteExtM=true</code>, a final <code>.m</code> suffix is removed from the result. Executable <code>.sprx</code>/<code>.self</code> paths bypass existence checks.
     </p>
     <pre><code>// Signature
 function conv_checked_path(short_path, dev_id = 0, bDeleteExtM = false)
@@ -227,8 +225,7 @@ local items = config.items;</code></pre>
     <h3>util_load_script(path)</h3>
     <p>
       Compiles and executes a Squirrel <code>.nut</code> script file. Functions and classes
-      defined in the script become available in the root table. This is the only way to
-      dynamically load code at runtime.
+      defined in the script become available in the root table. This is the normal resource-script loading path; <code>compilestring()</code> separately compiles source text already held in memory.
     </p>
     <pre><code>// Load a mode script
 ::util_load_script( ::conv_path("script/mode_normal.nut") );
@@ -362,8 +359,7 @@ if (checked != null) {
     <h3>host_listup_files(directory)</h3>
     <p>
       Lists files in a directory. Returns an array of filename strings, or <code>null</code>
-      if the directory doesn't exist. This is a native C++ function &mdash; the
-      <strong>only</strong> way to enumerate directory contents from Squirrel.
+      if the directory doesn't exist. This is a native C++ function &mdash; a supported way to enumerate directory contents from Squirrel.
     </p>
     <pre><code>// Only known usage in the codebase (emulator.nut:1500)
 local file_lists = ::g_emu_task.host_listup_files(".");
@@ -389,16 +385,15 @@ if (null != file_lists) {
     <div class="box box-warning">
       <strong>Limited scope</strong>
       This function operates relative to the m2engage working directory.
-      It cannot enumerate arbitrary filesystem paths outside the game content structure.
+      The stock scripts only demonstrate <code>"."</code>. This observed usage does not establish a filesystem sandbox or prove that other directory arguments are rejected.
     </div>
 
     <!-- ============================================================ -->
     <h2 id="no-file-reading">6b. Reading File Contents</h2>
 
     <div class="box box-danger">
-      <strong>No general-purpose file reading</strong>
-      There is <strong>no function</strong> to read the contents of a text file, JSON file,
-      or arbitrary binary file from Squirrel scripts. The complete list of
+      <strong>Resource access, rather than a standard file API</strong>
+      No general text/JSON file reader has been identified among these stock bindings. The identified
       <code>host_*</code> functions registered in the m2engage binary is:
       <pre style="margin-top:12px"><code>host_listup_files             # directory listing
 host_save_statedata_image     # save emulator state (opaque binary)
@@ -419,7 +414,7 @@ host_save_sram_image          # save SRAM data</code></pre>
 
     <h3>How data gets into Squirrel</h3>
     <p>
-      There are exactly two paths for getting file data into Squirrel scripts:
+      The normal paths for loading configuration data and code into Squirrel are:
     </p>
     <table>
       <tr><th>Mechanism</th><th>File Types</th><th>Returns</th></tr>
@@ -449,10 +444,7 @@ host_save_sram_image          # save SRAM data</code></pre>
 
     <div class="box box-info">
       <strong>compilestring()</strong>
-      The string <code>"compilestring"</code> exists in the m2engage binary, suggesting it
-      may be partially present. However, it is <strong>not usable</strong> from scripts
-      in practice &mdash; standard Squirrel I/O registration is stripped, and no script in
-      the codebase attempts to use it.
+      The native base-function table contains <code>compilestring</code> at <code>0x201b50</code>, pointing to the implementation at <code>0x0d703c</code>, which calls <code>sq_compilebuffer</code> at <code>0x092664</code>. It compiles an in-memory source string into a closure. This is independent of the optional standard file-I/O library; missing <code>dofile</code>/<code>loadfile</code> does not imply that string compilation is removed.
     </div>
 
     <!-- ============================================================ -->
@@ -552,7 +544,7 @@ fileparse("roms/game.pce")
     <!-- ============================================================ -->
     <h2 id="limitations">10. Limitations &amp; What You Cannot Do</h2>
 
-    <h3>Stripped from the VM</h3>
+    <h3>Standard Library Availability</h3>
     <table>
       <tr><th>Standard Squirrel Feature</th><th>Status</th></tr>
       <tr>
@@ -565,7 +557,7 @@ fileparse("roms/game.pce")
       </tr>
       <tr>
         <td><code>compilestring(code)</code></td>
-        <td>Removed. Cannot compile code from strings at runtime.</td>
+        <td>Present in the native base-function table; compiles in-memory source text into a closure.</td>
       </tr>
       <tr>
         <td><code>io.open()</code> / <code>file()</code></td>
@@ -577,16 +569,13 @@ fileparse("roms/game.pce")
       </tr>
     </table>
 
-    <h3>Cannot Do</h3>
+    <h3>Limits of the Identified Stock API</h3>
     <ul>
-      <li><strong>Read arbitrary files</strong> &mdash; Cannot open/read files outside the PSB/resource system</li>
-      <li><strong>Write arbitrary files</strong> &mdash; Only save state functions write to disk</li>
-      <li><strong>Create directories</strong> &mdash; No <code>mkdir</code> equivalent</li>
-      <li><strong>Delete files</strong> &mdash; No <code>remove</code> / <code>unlink</code></li>
-      <li><strong>Enumerate arbitrary directories</strong> &mdash; <code>host_listup_files()</code> is limited to game content paths</li>
-      <li><strong>Network I/O</strong> &mdash; No sockets, HTTP, or network access</li>
-      <li><strong>Execute system commands</strong> &mdash; No <code>system()</code> or <code>popen()</code></li>
-      <li><strong>Dynamic code compilation</strong> &mdash; No <code>eval</code> or runtime code generation</li>
+      <li><strong>General file access</strong> &mdash; the stock code uses engine resources, <code>Struct</code> save/load methods, and specific native helpers. It does not demonstrate a standard open/read/write API for arbitrary text files.</li>
+      <li><strong>Filesystem changes</strong> &mdash; native helpers can create or delete specific files, including the initialization marker. Their existence does not provide a general <code>mkdir</code>, <code>remove</code>, or <code>unlink</code> interface.</li>
+      <li><strong>Directory listing</strong> &mdash; the observed <code>host_listup_files()</code> usage lists the working directory; other path arguments have not been established here.</li>
+      <li><strong>Network and process access</strong> &mdash; no general socket/HTTP or shell-command API is documented here. This is a statement about the identified interface, not proof that the engine contains no platform network facilities.</li>
+      <li><strong>Runtime compilation</strong> &mdash; <code>util_load_script()</code> loads resource scripts; the native <code>compilestring()</code> binding compiles source text already in memory.</li>
     </ul>
 
     <h3>Squirrel Version</h3>
@@ -680,7 +669,7 @@ fileparse("roms/game.pce")
       <tr><th>Method</th><th>Description</th></tr>
       <tr>
         <td><code>GameContent.getPackageDevID()</code></td>
-        <td>Returns the base package dev_id (always 40 for PCE Mini)</td>
+        <td>Returns the base package dev_id (stock Japanese package 40; international package 41)</td>
       </tr>
       <tr>
         <td><code>GameContent.setVirtualDevID(id)</code></td>

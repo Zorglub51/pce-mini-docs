@@ -42,274 +42,138 @@
 
   <main>
     <h1>Pitfalls &amp; Gotchas</h1>
-    <p class="page-desc">
-      Hard-won lessons from debugging custom game packs. Each of these cost hours to figure out.
-    </p>
+    <p class="page-desc">Configuration mistakes, their actual causes, and the limits of what a symptom proves.</p>
 
-    <!-- Pitfall 1 -->
-    <h2>1. Sorting Indices Out of Range</h2>
-    <div class="box box-danger">
-      <strong>Symptom: Black screen with music playing</strong>
-      SQ output looks normal, music plays, but the screen is completely black.
-    </div>
-    <h3>The Problem</h3>
+    <h2>1. Sort Ranks Must Describe the Active Lineup</h2>
     <p>
-      The <code>sor_*</code> fields in each game item (<code>sor_name</code>, <code>sor_date</code>,
-      <code>sor_demo</code>, <code>sor_genr</code>, <code>sor_pnum</code>) are used as array indices
-      by the Squirrel scripts. The scripts create arrays of size <code>s_titleNum</code> and then
-      use <code>sor_*</code> to index into them.
+      For each active lineup of N entries, each of <code>sor_name</code>,
+      <code>sor_date</code>, <code>sor_genr</code> and <code>sor_pnum</code> should
+      contain every rank from 0 to N&minus;1 once. The menu inverts these ranks into
+      <code>s_indextable[rank] = item</code>. Duplicate ranks overwrite an entry and
+      leave holes. Keeping ranks from a larger original lineup can leave active
+      positions mapped to the sentinel <code>LINEUPMAX=50</code>.
     </p>
     <p>
-      If you reduce <code>titleNum</code> from 34 to 10 but leave the original sort indices
-      (some reaching up to 33), the script does:
+      The stock index array has 60 entries, not N. A rank greater than N&minus;1 is
+      therefore not necessarily an immediate array-bounds error, but it still breaks
+      the intended permutation. There is no evidence that Squirrel silently corrupts
+      memory on such an access. A black menu is a symptom to investigate, not proof of
+      VM corruption. <code>sor_demo</code> has a separate role in the demonstration
+      build; it is not the retail attract-mode playback order.
     </p>
-    <pre><code>// mode_title_select.nut, line ~2510
-for ( i = 0; i < s_titleNum; i++ )  // s_titleNum = 10
-{
-    local index = getPkgIndex( i, m_sort, m_config );
-    s_indextable[index] = i;   // index could be 33 -> OUT OF BOUNDS!
-}</code></pre>
-    <p>
-      Squirrel's array out-of-bounds doesn't throw a visible error &mdash; it silently corrupts
-      the VM state, causing the rendering to fail without any error message in the SQ logs.
-    </p>
-    <h3>The Fix</h3>
-    <p>
-      Every <code>sor_*</code> value must be in range <code>[0, N-1]</code> where N is
-      <code>titleNum</code> (for JP items) or <code>titleNumTG</code> (for US items).
-      The simplest approach: set each item's <code>sor_*</code> to its position within
-      the 50-item section.
-    </p>
-    <pre><code># Python: fix sort indices
-for i in range(200):
-    section_pos = i % 50
-    for key in ['sor_date', 'sor_demo', 'sor_genr', 'sor_name', 'sor_pnum']:
-        items[i][key] = section_pos</code></pre>
+    <pre><code># A simple valid order; apply only to active items in each section.
+for i, item in enumerate(active_items):
+    for key in ('sor_name', 'sor_date', 'sor_genr', 'sor_pnum'):
+        item[key] = i</code></pre>
+    <p>See <a href="title-mode-top.html">title_mode_top</a> before changing the count or sorting.</p>
 
-    <!-- Pitfall 2 -->
-    <h2>2. title_prof Missing <code>root</code> Wrapper</h2>
-    <div class="box box-danger">
-      <strong>Symptom: No SQ output, no sound, immediate black screen</strong>
-      m2engage crashes during native init before any scripts execute.
-    </div>
-    <h3>The Problem</h3>
+    <h2>2. Keep the Profile's root Wrapper and Real Field Names</h2>
     <p>
-      The <code>title_prof.psb.m</code> file must have its data wrapped in a <code>root</code>
-      object. The native C++ parser expects this exact structure and crashes without it.
+      Stock <code>game_content.nut:_get_title_prof()</code> accesses
+      <code>util_load_config(path).root</code>, then merges
+      <code>title_prof_specdepend</code>. A flat profile is incompatible with that
+      reader. This requirement comes from Squirrel; it is not a special native
+      title_prof parser rejecting unfamiliar keys.
     </p>
-    <pre><code>// WRONG - causes crash
-{
-  "m2epi": { "version": { ... } },
-  "game_versions": { ... }
-}
-
-// CORRECT
-{
+    <pre><code>{
   "root": {
-    "m2epi": { "version": { ... } },
-    "game_versions": { ... },
-    "controller": { ... },
-    "player_num": 6,
-    "replay": { ... },
-    "title": { "dev_name": "PceMini" },
-    "wallpaper": { ... }
+    "m2epi": { "version": { "GAME000": {
+      "arch": "tg16", "country": "jp", "rom": "roms/MyGame.pce"
+    } } },
+    "player_num": 6
   }
 }</code></pre>
-    <h3>The Fix</h3>
     <p>
-      Always wrap title_prof data in <code>{"root": { ... }}</code>. Include all 7 expected
-      sections. Note: <code>player_num</code> is a plain integer (6), not a dict.
+      This fragment illustrates nesting, not a complete launchable package. Shared
+      controller, wallpaper, replay and version metadata have their own readers and
+      requirements. There is no established rule that exactly seven sections are
+      mandatory or that unknown keys themselves crash the native loader.
+    </p>
+    <p>
+      Use the actual names <code>replay.init_replay_record_time</code>,
+      <code>replay.max_replay_record_time</code>, <code>replay.replay_record_time_list</code>,
+      <code>wallpaper.datafile</code> and <code>wallpaper.max_num</code>. Names such as
+      <code>replay.fps</code> or <code>wallpaper.motion_file</code> do not substitute
+      for them. Replay record-time values are in minutes. See the
+      <a href="title-prof.html">profile reference</a> for defaults and conditional readers.
     </p>
 
-    <!-- Pitfall 2b -->
-    <h2>2b. title_prof Wrong Field Names</h2>
-    <div class="box box-danger">
-      <strong>Symptom: No SQ output, no sound, immediate black screen</strong>
-      Identical to the missing <code>root</code> crash. The native parser rejects unknown field names.
-    </div>
-    <h3>The Problem</h3>
+    <h2>3. MZS Uses the Full Basename</h2>
     <p>
-      The native C++ parser expects <strong>exact</strong> field names in certain sections.
-      Using plausible-but-wrong names silently crashes:
+      Key derivation includes the lowercased filename including its extensions:
+      <code>title_prof.psb.m</code>, not just <code>title_prof</code>. Renaming an
+      encrypted file changes the expected key. Repack with the intended destination
+      basename if you need a new name. Moving it to another directory without changing
+      that basename does not change this filename-derived key.
     </p>
-    <pre><code>// WRONG — crashes native parser
-"replay": {
-  "fps": 60,                  // not a real field
-  "record_sec": 90            // not a real field
-}
-"wallpaper": {
-  "motion_file": "...",       // wrong name
-  "num": 1                    // wrong name
-}
-
-// CORRECT
-"replay": {
-  "init_replay_record_time": 60,
-  "max_replay_record_time": 60,
-  "replay_record_time_list": [0, 30, 60]
-}
-"wallpaper": {
-  "datafile": "motion/bg%02d.psb",
-  "max_num": 1
-}</code></pre>
-    <h3>The Fix</h3>
     <p>
-      Copy field names exactly from the original. When in doubt, extract the original
-      <code>title_prof.psb.m</code> and compare field-by-field. See the
-      <a href="title-prof.html">title_prof reference</a> for the complete field list.
+      A failed zstd decode can also mean a wrong game key, damaged payload or wrong
+      format; it does not uniquely identify a rename. See <a href="mzs-format.html">MZS / PSB Format</a>.
     </p>
 
-    <!-- Pitfall 3 -->
-    <h2>3. MZS Filename Sensitivity</h2>
-    <div class="box box-warning">
-      <strong>Symptom: "Decrypted data is not zstd" error from mzstool</strong>
-    </div>
-    <h3>The Problem</h3>
+    <h2>4. Padding Slots Are Not Active Games</h2>
     <p>
-      The MZS encryption key is derived from the filename. If you rename a <code>.psb.m</code>
-      file, the decryption key changes and the file becomes unreadable.
+      The examined menu contains 200 items in four sections of 50. Counts
+      <code>titleNum</code> and <code>titleNumTG</code> determine which entries are
+      active. Stock padding entries use <code>regionTag="DUMMY"</code>,
+      <code>players=1</code> and <code>demo_time=6180</code>. These are template
+      values, not proof that every different padding value crashes the engine.
+      Do not include a DUMMY entry in the active game count.
     </p>
-    <pre><code># This works:
-mzstool.py extract title_mode_top.psb.m
 
-# This fails (wrong key derived from "renamed"):
-cp title_mode_top.psb.m renamed.psb.m
-mzstool.py extract renamed.psb.m
-# -> ValueError: Decrypted data is not zstd (magic: 0x9a7b8864)</code></pre>
-    <h3>The Fix</h3>
-    <p>Always keep the original filename when extracting or building.</p>
-
-    <!-- Pitfall 4 -->
-    <h2>4. DUMMY Entry Differences</h2>
-    <div class="box box-info">
-      <strong>Subtle: Doesn't crash but may cause unexpected behavior</strong>
-    </div>
-    <h3>The Problem</h3>
+    <h2>5. Retained Fields Are Not Necessarily Active Options</h2>
     <p>
-      DUMMY entries in the original data have <code>players: 1</code> and
-      <code>demo_time: 6180</code>, but it's tempting to use <code>players: 0</code>
-      (since dummy games have no players) and different demo_time values.
+      The original <code>title_mode_top</code> also contains
+      <code>motion_basename</code>, <code>motion_chara</code>, <code>motion_label</code>,
+      <code>scroll_frame</code> and <code>scroll_variable</code>. No reader for these
+      fields was found in the shipped PCE selection/demo path. Preserve them for
+      compatibility, but do not describe them as five mandatory native animation settings.
+      Likewise, the presence of a profile field or a setter does not prove a hardware effect.
     </p>
-    <h3>The Fix</h3>
-    <p>Match the original DUMMY template exactly:</p>
+
+    <h2>6. Lineup, Language and Hardware Region Are Separate</h2>
     <ul>
-      <li><code>players: 1</code> (not 0)</li>
-      <li><code>demo_time: 6180</code></li>
-      <li><code>regionTag: "DUMMY"</code></li>
-      <li><code>sor_*: section_index</code> (see Pitfall #1)</li>
+      <li><code>titleNum</code> counts the PCE lineup; <code>titleNumTG</code> counts the TG16 lineup (34 and 24 in the examined package).</li>
+      <li>The +100 menu offset supplies translated text and sorting data. Normal launch reads <code>ScreenMode</code> and offsets from the base lineup half.</li>
+      <li>Profile <code>country="jp"</code> or <code>"us"</code> sets the emulated controller-port region bit. It does not select PAL video, a menu language or a ROM by itself.</li>
     </ul>
 
-    <!-- Pitfall 5 -->
-    <h2>5. Missing Top-Level Keys in title_mode_top</h2>
-    <div class="box box-warning">
-      <strong>Symptom: Rendering glitches or missing animations</strong>
-    </div>
-    <h3>The Problem</h3>
+    <h2>7. Controller Type Is a Bitmask</h2>
     <p>
-      Besides <code>items</code>, <code>titleNum</code>, and <code>titleNumTG</code>,
-      the title_mode_top file has five additional top-level keys used by the native
-      animation engine:
-    </p>
-    <pre><code>"motion_basename": "title_grandmenu",
-"motion_chara": "grandmenu",
-"motion_label": "stand",
-"scroll_frame": 10,
-"scroll_variable": "gametitle_normal"</code></pre>
-    <h3>The Fix</h3>
-    <p>Always include all eight top-level keys. Copy these five values verbatim from the originals.</p>
-
-    <!-- Pitfall 6 -->
-    <h2>6. titleNum / titleNumTG Swapped</h2>
-    <div class="box box-warning">
-      <strong>Symptom: Wrong game count per lineup, carousel behaves oddly</strong>
-    </div>
-    <h3>The Problem</h3>
-    <p>
-      The naming is counterintuitive:
-    </p>
-    <ul>
-      <li><code>titleNum</code> = JP/PCE game count (34 in original)</li>
-      <li><code>titleNumTG</code> = US/TG16 game count (24 in original)</li>
-    </ul>
-    <p>
-      It's easy to swap these, especially since the script uses them via a conditional:
-    </p>
-    <pre><code>if (s_last_linenp == LINEUP_JP)
-    s_titleNum = m_config["titleNum"];      // JP count
-else
-    s_titleNum = m_config["titleNumTG"];    // US count</code></pre>
-
-    <!-- Pitfall 7 -->
-    <h2>7. Stale gl_proxy / Shared Memory</h2>
-    <div class="box box-info">
-      <strong>Symptom: m2engage hangs, gl_proxy shows "Ready" but nothing happens</strong>
-    </div>
-    <h3>The Problem</h3>
-    <p>
-      When running on the VM setup (virgl + qemu-user), a leftover gl_proxy process
-      from a previous session can hold the <code>/dev/shm/m2e_gl</code> shared memory file.
-      New instances get confused.
-    </p>
-    <h3>The Fix</h3>
-    <pre><code># Before launching:
-pkill -9 -f gl_proxy
-pkill -9 -f m2engage
-rm -f /dev/shm/m2e_gl
-sleep 1
-# Now launch run.sh</code></pre>
-
-    <!-- Pitfall 8 -->
-    <h2>8. Platform Check Intermittent Crash</h2>
-    <div class="box box-info">
-      <strong>Symptom: Exit code 99 (SIGBUS), "platform read failed" message</strong>
-    </div>
-    <h3>The Problem</h3>
-    <p>
-      m2engage's hardware platform check (i2c EEPROM read) occasionally triggers a SIGBUS
-      under qemu-user emulation. This is non-deterministic and timing-sensitive.
-    </p>
-    <h3>The Fix</h3>
-    <p>
-      The <code>run.sh</code> script auto-retries on exit code 99, up to 10 attempts.
-      Don't confuse this crash with a PSB-related issue &mdash; it happens before any
-      config files are loaded.
+      <code>tg16pad_type=5</code> means two-button pads, multitap enabled and auxiliary
+      inputs matched per port. Six-button protocol is bit 1 (mask 2), so 3 and 7 enable
+      it with multitap. Menu <code>players</code>, runtime <code>player_num</code>,
+      logical <code>player_input_num</code> and the pad protocol serve different purposes.
+      See the <a href="title-prof.html#pad-type">complete pad table</a>.
     </p>
 
-    <h2>Debugging Cheat Sheet</h2>
+    <h2>8. ScreenMode Crops the Source Image</h2>
+    <p>
+      It does not select an HDMI resolution, alter the ROM's VDC registers or have the
+      same crop table for every core. In R-Type's TG16 configuration, mode 4 selects
+      336 pixels at x=8 from a 352-pixel raster. <code>EmuOfsX/Y</code> are source-pixel
+      crop offsets; the generic renderer ignores them when the descriptor has no
+      explicit crop. See <a href="title-mode-top.html#screen-mode">the per-core tables</a>.
+    </p>
+
+    <h2>9. overdrive Is Run-Ahead, Not a Speed Setting</h2>
+    <p>
+      For <code>overdrive=N &gt; 0</code>, an update with video output advances the kept game state by
+      one frame, temporarily simulates N more frames using the current inputs, displays
+      the last image and restores the kept state. It does not skip N frames when a button
+      is pressed, simulate every possible button combination or increase normal game speed.
+      More run-ahead costs more CPU work. See <a href="title-prof.html#overdrive">the worked example</a>.
+    </p>
+
+    <h2>Debugging Without Overclaiming</h2>
     <table>
-      <tr><th>Observation</th><th>Likely Cause</th><th>Check</th></tr>
-      <tr>
-        <td>No output at all, immediate exit</td>
-        <td>Platform check crash</td>
-        <td>Exit code 99? Auto-retries handle this</td>
-      </tr>
-      <tr>
-        <td>gl_proxy ready, no SQ output, no sound</td>
-        <td>title_prof.psb.m malformed</td>
-        <td>Restore original title_prof, test again</td>
-      </tr>
-      <tr>
-        <td>SQ output normal, music, black screen</td>
-        <td>sor_* out of range OR motion PSB issue</td>
-        <td>Check all sor_* &lt; titleNum</td>
-      </tr>
-      <tr>
-        <td>SQ output, visuals, wrong/missing covers</td>
-        <td>Motion PSB icon mapping wrong</td>
-        <td>Check image indices and sprite sheet</td>
-      </tr>
-      <tr>
-        <td>Everything works, game won't launch</td>
-        <td>ROM path wrong in title_prof</td>
-        <td>Verify rom field matches actual file</td>
-      </tr>
-      <tr>
-        <td>"Decrypted data is not zstd"</td>
-        <td>File was renamed</td>
-        <td>Keep original filename for extract/build</td>
-      </tr>
+      <tr><th>Observation</th><th>Useful checks</th></tr>
+      <tr><td>Immediate startup failure</td><td>Platform initialization, resource paths, MZS/PSB validity, and the first available script error. Missing script output alone does not identify title_prof.</td></tr>
+      <tr><td>Music, black menu</td><td>Active counts and sort permutations; required motion characters, textures and parameters; script exceptions.</td></tr>
+      <tr><td>Wrong covers or names</td><td>Lineup/language offsets, atlas <code>image</code> indices and <code>tname</code>.</td></tr>
+      <tr><td>Game fails to launch</td><td>Selected profile tag, <code>arch</code>, ROM path and format, and core-specific options.</td></tr>
+      <tr><td>Unexpected speed or video</td><td>Distinguish CPU budget (<code>tg16_option</code> mask 4), timing (<code>tg16_hblank</code>/mask 1), source crop (<code>ScreenMode</code>) and run-ahead (<code>overdrive</code>).</td></tr>
     </table>
-
   </main>
 </body>
 </html>

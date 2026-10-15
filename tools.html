@@ -70,12 +70,12 @@
       </tr>
       <tr>
         <td><code>unpack</code></td>
-        <td>MZS decrypt only: .psb.m &rarr; .psb</td>
+        <td>MZS decrypt and decompress: .psb.m &rarr; .psb</td>
         <td><code>mzstool.py unpack file.psb.m</code></td>
       </tr>
       <tr>
         <td><code>pack</code></td>
-        <td>MZS encrypt only: .psb &rarr; .psb.m</td>
+        <td>MZS compress and encrypt: .psb &rarr; .psb.m</td>
         <td><code>mzstool.py pack file.psb</code></td>
       </tr>
       <tr>
@@ -125,7 +125,7 @@
       <strong>Output filename determines encryption key</strong>
       The build command derives the output filename from the JSON input path.
       <code>title_mode_top/title_mode_top.json</code> &rarr; <code>title_mode_top.psb.m</code>.
-      The JSON filename MUST match the expected PSB filename.
+      The final output basename, including <code>.psb.m</code>, determines the key. An explicit output argument can override the name derived from the JSON; use the exact filename expected by the engine.
     </div>
 
     <h2>build_gamepack.py</h2>

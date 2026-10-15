@@ -108,6 +108,7 @@ main {
   flex: 1;
   max-width: 900px;
   padding: 40px 48px 80px;
+  min-width: 0;
 }
 
 h1 {
@@ -178,6 +179,7 @@ code {
   border-radius: 4px;
   font-size: 13px;
   color: var(--accent3);
+  overflow-wrap: anywhere;
 }
 
 pre {
@@ -219,6 +221,7 @@ td {
   border: 1px solid var(--border);
   padding: 8px 14px;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 tr:nth-child(even) td {

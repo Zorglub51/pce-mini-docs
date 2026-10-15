@@ -42,39 +42,50 @@
 
   <main>
     <h1>title_mode_top <span class="tag">config</span></h1>
-    <p class="page-desc">
-      The master game list. Defines all 200 game slots across four sections,
-      with metadata, display names, sorting indices, and platform information.
-    </p>
+    <p class="page-desc">The original PC Engine Mini menu catalogue: game identities, translated names,
+      packaging, sorting and the screen crop applied before a game starts.</p>
 
-    <h2>File Location</h2>
+    <p>Jump to: <a href="#item-fields">all game fields</a> &middot;
+      <a href="#csize">packaging</a> &middot; <a href="#screen-mode">video crop tables</a> &middot;
+      <a href="#language-launch">language and launch</a> &middot; <a href="#r-type">R-Type example</a>.</p>
+
+    <h2 id="scope">Scope and File Location</h2>
     <pre><code>040/config/title_mode_top.psb.m</code></pre>
-    <p>Original size: 5,092 bytes (encrypted+compressed). Decodes to ~113 KB JSON.</p>
+    <p>The retail resource examined here contains 200 items. Its JSON root is the table shown below,
+      with no extra <code>root</code> wrapper. This is the menu list; the emulated machine and ROM
+      are selected separately by <a href="title-prof.html">title_prof</a>.</p>
+    <p>Behaviour was traced through the decrypted stock <code>mode_title_select.nut</code> and
+      <code>mode_demo.nut</code>, and the ARM video descriptor getters. Native addresses below refer to
+      the m2engage build with SHA-256
+      <code>b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792</code>.
+      They establish the behaviour of this build, rather than a universal schema for every M2 title.</p>
 
     <h2>Top-Level Structure</h2>
     <pre><code>{
-  "items": [ ... ],              // 200 game entries (always 200)
+  "items": [ ... ],              // retail layout: four sections of 50
   "motion_basename": "title_grandmenu",
   "motion_chara": "grandmenu",
   "motion_label": "stand",
   "scroll_frame": 10,
   "scroll_variable": "gametitle_normal",
-  "titleNum": 34,                // JP game count
-  "titleNumTG": 24               // US game count
+  "titleNum": 34,                // active PCE-lineup entries
+  "titleNumTG": 24               // active TG16-lineup entries
 }</code></pre>
-
-    <div class="box box-warning">
-      <strong>All top-level keys are required</strong>
-      The <code>motion_*</code>, <code>scroll_*</code> keys are used by the native engine
-      for menu animation. Omitting them may cause rendering issues.
+    <p><code>titleNum</code> and <code>titleNumTG</code> determine the active entries in each lineup.
+      The shipped selection script uses a fixed <code>LINEUPMAX = 50</code> to locate the sections;
+      increasing a count beyond 50 does not extend that layout. Keep unused slots as
+      <code>DUMMY</code> entries, including those visited by the attract-mode loop.</p>
+    <div class="box box-info">
+      <strong>Retained keys are not automatically required settings.</strong>
+      The five <code>motion_*</code>/<code>scroll_*</code> keys above exist in the retail resource,
+      but no active reader for them was found in the shipped PC Engine selection/demo path.
+      Menu motion resources are selected elsewhere in those scripts. There is no evidence that
+      these five keys form a mandatory native parser schema.
     </div>
 
-    <h2>The 200 Items Array</h2>
-    <p>
-      The items array is <strong>always exactly 200 entries</strong>, divided into four sections
-      of 50. Unused slots are filled with DUMMY entries.
-    </p>
-
+    <h2 id="layout">The Four Sections</h2>
+    <p>The first 100 items contain the two lineups' base entries. The next 100 provide the
+      non-Japanese name and sort views. These views are not four independent sets of games.</p>
     <!-- SVG diagram for the 200-item array -->
     <svg width="750" height="320" viewBox="0 0 750 320" xmlns="http://www.w3.org/2000/svg">
       <!-- Background -->
@@ -136,208 +147,206 @@
       <text x="557" y="302" fill="#58a6ff" font-size="11" text-anchor="middle">titleNumTG = 24</text>
     </svg>
 
-    <h2>Item Entry Fields</h2>
-    <p>Each of the 200 items has these fields:</p>
 
+    <h2 id="item-fields">All 24 Per-Item Fields</h2>
+    <p>The table separates a field's actual consumer from values merely observed in the stock data.
+      Related fields are grouped together.</p>
     <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th><th>Example</th></tr>
-      <tr>
-        <td><code>regionTag</code></td><td>string</td>
-        <td>Game ID. Links to title_prof entries. <code>"DUMMY"</code> for empty slots</td>
-        <td><code>"GAME000"</code></td>
-      </tr>
-      <tr>
-        <td><code>name</code> / <code>tname</code></td><td>string</td>
-        <td>Display name. <code>name</code> = original, <code>tname</code> = translated/display version</td>
-        <td><code>"THE 功夫"</code></td>
-      </tr>
-      <tr>
-        <td><code>image</code></td><td>int</td>
-        <td>Index into the cover motion sprite sheet (0-based)</td>
-        <td><code>0</code></td>
-      </tr>
-      <tr>
-        <td><code>csize</code></td><td>int</td>
-        <td>Platform type (see table below)</td>
-        <td><code>0</code></td>
-      </tr>
-      <tr>
-        <td><code>ccolor</code></td><td>int</td>
-        <td>Box/border color in UI (see table below)</td>
-        <td><code>0</code></td>
-      </tr>
-      <tr>
-        <td><code>players</code></td><td>int</td>
-        <td>Number of players (1 or 2). DUMMY entries use <code>1</code></td>
-        <td><code>1</code></td>
-      </tr>
-      <tr>
-        <td><code>demo_time</code></td><td>int</td>
-        <td>Demo/attract mode duration in milliseconds</td>
-        <td><code>6120</code></td>
-      </tr>
-      <tr>
-        <td><code>titlebar</code></td><td>int</td>
-        <td>Title bar style (0-12)</td>
-        <td><code>4</code></td>
-      </tr>
-      <tr>
-        <td><code>ScreenMode</code></td><td>int</td>
-        <td>Display mode (0 = default)</td>
-        <td><code>0</code></td>
-      </tr>
-      <tr>
-        <td><code>EmuOfsX</code> / <code>EmuOfsY</code></td><td>int</td>
-        <td>Emulator screen offset in pixels</td>
-        <td><code>0</code></td>
-      </tr>
-      <tr>
-        <td><code>dev_name</code></td><td>string</td>
-        <td>Always <code>"PceMini"</code></td>
-        <td><code>"PceMini"</code></td>
-      </tr>
-      <tr>
-        <td><code>action</code></td><td>string</td>
-        <td>Always <code>"Boot"</code></td>
-        <td><code>"Boot"</code></td>
-      </tr>
-      <tr>
-        <td><code>regionTagE</code></td><td>string</td>
-        <td>Always <code>"NO"</code></td>
-        <td><code>"NO"</code></td>
-      </tr>
-      <tr>
-        <td><code>regionTagS1</code> / <code>regionTagS2</code></td><td>string</td>
-        <td>Always <code>"NO"</code></td>
-        <td><code>"NO"</code></td>
-      </tr>
-      <tr>
-        <td><code>copy</code> / <code>desc</code></td><td>string</td>
-        <td>Unused, always empty <code>""</code></td>
-        <td><code>""</code></td>
-      </tr>
+      <tr><th>Field</th><th>Type / values</th><th>Effect in the shipped scripts</th></tr>
+      <tr><td><code>regionTag</code></td><td>string; e.g. <code>GAME031</code> or <code>DUMMY</code></td>
+        <td>Selects a <code>title_prof.m2epi.version</code> entry and the saved game identity.
+          The demo loop skips <code>DUMMY</code>.</td></tr>
+      <tr><td><code>regionTagE</code></td><td>profile tag or <code>"NO"</code></td>
+        <td>Alternate profile chosen when SELECT is held while confirming a game. It is not an
+          English translation field. <code>"NO"</code> keeps the ordinary <code>regionTag</code>.</td></tr>
+      <tr><td><code>regionTagS1</code>, <code>regionTagS2</code></td><td>profile tags or <code>"NO"</code></td>
+        <td>Hidden variants chosen by the selection script's SELECT counter: count 2 uses S1,
+          count 3 uses S2. Moving to another game resets the counter. Holding SELECT at launch
+          takes the <code>regionTagE</code> branch instead.</td></tr>
+      <tr><td><code>name</code></td><td>string</td><td>Original/bookkeeping title, also printed by the
+        demo diagnostics. The selected card's displayed title comes from <code>tname</code>.</td></tr>
+      <tr><td><code>tname</code></td><td>string</td><td>Text drawn as the selected game's name.
+        Japanese UI reads the first half; other UI languages read the English-view half.</td></tr>
+      <tr><td><code>dev_name</code></td><td>string; stock <code>"PceMini"</code></td>
+        <td>Matches the package title identity used to switch the active title resources.
+          It does not select the emulated hardware region.</td></tr>
+      <tr><td><code>image</code></td><td>zero-based integer</td><td>Assigned to the motion variable
+        <code>pkg</code> for covers, thumbnails and launch artwork. Its valid range depends on
+        the motion resource's available artwork; it is not a fixed engine-wide image limit.</td></tr>
+      <tr><td><code>csize</code></td><td>integer; stock 0–4</td><td>Selects the packaging/boot animation,
+        its waiting time and the save-state allocation class. It does not select the emulator core.
+        See the table below.</td></tr>
+      <tr><td><code>ccolor</code></td><td>integer; stock 0–3</td><td>Selects the cover-case motion:
+        black, white, double-disc or SuperGrafx. These include different shapes, not just a tint.</td></tr>
+      <tr><td><code>players</code></td><td>integer; stock 0, 1, 2, 3, 5</td><td>Assigned to the menu motion's
+        <code>playernum</code> variable. The sorting order is separately stored in <code>sor_pnum</code>.
+        This does not configure the runtime <code>player_num</code> or controller protocol.</td></tr>
+      <tr><td><code>titlebar</code></td><td>integer; stock 0–12</td><td>Assigned to the menu motion's
+        <code>titlebar</code> variable. 0 disables the bar; 1–12 select the stock styles.</td></tr>
+      <tr><td><code>demo_time</code></td><td>integer counter</td><td>Attract-mode running duration in update
+        ticks, approximately 60 per second. For example, 6120 is about 102 seconds, not 6.12 seconds.
+        The exit check is <code>++demo_count &gt; demo_time</code>; zero ends at the first check.
+        If the field is absent, the script uses 1800 ticks.</td></tr>
+      <tr><td><code>ScreenMode</code></td><td>integer</td><td>Selects a source-image crop before scaling.
+        Meaning depends on <code>arch</code>; see the exact native tables below.</td></tr>
+      <tr><td><code>EmuOfsX</code>, <code>EmuOfsY</code></td><td>signed integer source pixels</td>
+        <td>Added to the crop's source X/Y position. Positive values sample farther right/down.
+          The renderer uses them only when an explicit crop is active.</td></tr>
+      <tr><td><code>sor_name</code>, <code>sor_date</code>, <code>sor_genr</code>, <code>sor_pnum</code></td>
+        <td>integer ranks</td><td>Order for name, release date, genre and player-count sorting.
+          These are precomputed ranks, not dates, genre identifiers or player counts.</td></tr>
+      <tr><td><code>sor_demo</code></td><td>integer rank</td><td>Overrides the sort rank in the script's
+        special <code>DEMOVERSISON == 1</code> build path, which also restricts entries with rank &gt; 2.
+        The retail attract-mode loop walks items 0–99 in order; it does not use this key as its order.</td></tr>
+      <tr><td><code>action</code></td><td>string; stock <code>"Boot"</code></td>
+        <td>Retained metadata. No active per-item consumer found in the selection/demo scripts;
+          changing this string is not a way to execute an arbitrary action.</td></tr>
+      <tr><td><code>copy</code>, <code>desc</code></td><td>strings; stock <code>""</code></td>
+        <td>Retained descriptive metadata. No active per-item consumer found in the selection/demo scripts.</td></tr>
     </table>
 
-    <h3>Sorting Fields</h3>
-    <table>
-      <tr><th>Field</th><th>Description</th></tr>
-      <tr><td><code>sor_name</code></td><td>Position when sorted alphabetically by name</td></tr>
-      <tr><td><code>sor_date</code></td><td>Position when sorted by release date</td></tr>
-      <tr><td><code>sor_demo</code></td><td>Position when sorted by demo mode order</td></tr>
-      <tr><td><code>sor_genr</code></td><td>Position when sorted by genre</td></tr>
-      <tr><td><code>sor_pnum</code></td><td>Position when sorted by player count</td></tr>
-    </table>
+    <h3 id="sorting">Sorting Invariants</h3>
+    <p>For each lineup and language view, each active sorting field should be a permutation of
+      <code>0…N−1</code>, where N is that lineup's active count. The script builds an inverse lookup
+      with <code>s_indextable[rank] = item_index</code>. Duplicate ranks overwrite another entry and
+      leave holes. Ranks outside the active range can make an entry inaccessible; sufficiently
+      large or negative ranks can cause an array error. The original array has 60 elements,
+      so an out-of-active-range value is not automatically an immediate bounds exception.</p>
+    <p><code>DUMMY</code> entries outside the active count are not included in this sorting loop.
+      The stock data gives them their within-section position (0–49). Keeping that convention
+      does not make arbitrary active sort ranks safe.</p>
 
-    <div class="box box-danger">
-      <strong>CRITICAL: Sorting indices must be in range!</strong>
-      Every <code>sor_*</code> value must be in the range <code>[0, titleNum-1]</code> for JP items
-      (or <code>[0, titleNumTG-1]</code> for US items). Out-of-range values cause
-      <strong>black screen</strong> &mdash; the scripts silently crash with an array out-of-bounds
-      when building the sort index table. This is the #1 gotcha when modifying game lists.
+    <h3 id="csize">csize: Packaging and Save-State Class</h3>
+    <table>
+      <tr><th>Value</th><th>Launch motion</th><th>Save-state allocation selected by menu</th></tr>
+      <tr><td>0</td><td>HuCard (<code>hucard</code>)</td><td>Normal <code>EMU_STATE</code></td></tr>
+      <tr><td>1</td><td>SuperGrafx (<code>boot_sg</code>)</td><td>Normal <code>EMU_STATE</code></td></tr>
+      <tr><td>2</td><td>CD-ROM² (<code>boot_cdromrom</code>)</td><td>Large <code>EMU_STATE_L</code></td></tr>
+      <tr><td>3</td><td>Super CD-ROM² (<code>boot_super</code>)</td><td>Large <code>EMU_STATE_L</code></td></tr>
+      <tr><td>4</td><td>Arcade CD-ROM² (<code>boot_arcade</code>)</td><td>Large <code>EMU_STATE_L</code></td></tr>
+      <tr><td>5</td><td>Special Salamander branch: HuCard motion</td><td>Large <code>EMU_STATE_L</code></td></tr>
+    </table>
+    <p>Value 5 is handled by the stock code but absent from the examined retail list. For values 3
+      and 4, holding SELECT uses the ordinary CD boot animation. The machine remains defined by
+      the selected <code>title_prof</code> version's <code>arch</code> and <code>tg16cd_systemcard</code>.
+      An arbitrary integer has no documented packaging meaning.</p>
+
+    <h3 id="ccolor">ccolor: Cover-Case Motion</h3>
+    <table>
+      <tr><th>Value</th><th>Motion</th><th>Case</th></tr>
+      <tr><td>0</td><td><code>pkg</code></td><td>Black case</td></tr>
+      <tr><td>1</td><td><code>pkg_white</code></td><td>White case</td></tr>
+      <tr><td>2</td><td><code>pkg_wide</code></td><td>Double-disc case</td></tr>
+      <tr><td>3</td><td><code>pkg_sg</code></td><td>SuperGrafx case</td></tr>
+      <tr><td>5</td><td><code>pkg</code></td><td>Alias for black case in the script; absent from the stock list</td></tr>
+    </table>
+    <p>No explicit branch exists for value 4 or other integers; they should not be assigned an
+      invented color meaning.</p>
+
+    <h2 id="screen-mode">ScreenMode: Exact Crops by Core</h2>
+    <p>The menu calls <code>SetScreenMode</code> and <code>SetEmuScreenOffsetX/Y</code> before launch.
+      Each native core then builds a video descriptor from its current raster dimensions.
+      <code>ScreenMode</code> changes the part of that raster sent for display. It does not change
+      the ROM's VDC registers, game logic speed or HDMI output resolution.</p>
+    <p>Each cell below is <strong>visible width @ source X</strong>, in pixels, with zero additional
+      <code>EmuOfsX/Y</code>. “Full” keeps the original raster width. Heights are unchanged by
+      <code>ScreenMode</code>. Other raster widths keep their full width in these branches.</p>
+    <h3>TG16 / PC Engine HuCard <small>(getter <code>0x7612c</code>)</small></h3>
+    <table>
+      <tr><th>ScreenMode</th><th>272-pixel raster</th><th>352-pixel raster</th><th>512-pixel raster</th></tr>
+      <tr><td>0</td><td>256 @ 8</td><td>Full</td><td>Full</td></tr>
+      <tr><td>1</td><td>Full</td><td>Full</td><td>Full</td></tr>
+      <tr><td>2, 3</td><td>256 @ 8</td><td>320 @ 16</td><td>Full</td></tr>
+      <tr><td>4</td><td>256 @ 8</td><td>336 @ 8</td><td>256 @ 160</td></tr>
+      <tr><td>5</td><td>256 @ 8</td><td>Full</td><td>256 @ 160</td></tr>
+      <tr><td>Other integers</td><td>Full</td><td>Full</td><td>Full</td></tr>
+    </table>
+    <h3>TG16CD <small>(getter <code>0x7e344</code>)</small></h3>
+    <table>
+      <tr><th>ScreenMode</th><th>272-pixel raster</th><th>352-pixel raster</th><th>512-pixel raster</th></tr>
+      <tr><td>0</td><td>256 @ 8</td><td>Full</td><td>Full</td></tr>
+      <tr><td>1</td><td>256 @ 16</td><td>Full</td><td>Full</td></tr>
+      <tr><td>2</td><td>256 @ 8</td><td>320 @ 24</td><td>Full</td></tr>
+      <tr><td>3, 4</td><td>256 @ 8</td><td>336 @ 8</td><td>Full</td></tr>
+      <tr><td>Other integers</td><td>Full</td><td>Full</td><td>Full</td></tr>
+    </table>
+    <h3>SuperGrafx <small>(getter <code>0x87e64</code>)</small></h3>
+    <table>
+      <tr><th>ScreenMode</th><th>272-pixel raster</th><th>352-pixel raster</th><th>512-pixel raster</th></tr>
+      <tr><td>0</td><td>256 @ 8</td><td>Full</td><td>Full</td></tr>
+      <tr><td>3</td><td>256 @ 8</td><td>320 @ 16</td><td>Full</td></tr>
+      <tr><td>Other integers</td><td>Full</td><td>Full</td><td>Full</td></tr>
+    </table>
+    <div class="box box-warning">
+      <strong>The same mode number does not mean the same crop in every core.</strong>
+      For example, mode 1 keeps a 272-pixel TG16 raster in full, but TG16CD displays 256 pixels
+      from X=16. Mode 4's 512-pixel TG16 crop starts at X=160, not the centred X=128.
     </div>
+    <h3 id="screen-offsets">When EmuOfsX and EmuOfsY Take Effect</h3>
+    <p>The getters add these signed values to the descriptor's source position. The shared renderer
+      (<code>0x348e8–0x3499a</code>) applies them only if the descriptor's explicit-crop flag is set.
+      If no crop is active, it centres the full raster and discards those offset values. A separate
+      GT-screen property can create a vertical crop and therefore also activate explicit offsets.</p>
+    <p>For example, TG16 mode 4 on a 352-pixel raster samples 336 pixels starting at
+      <code>X = 8 + EmuOfsX</code>. Setting <code>EmuOfsX = 2</code> samples from X=10.
+      In mode 0 on the same raster, there is no horizontal crop, so the added offset is ignored
+      unless another crop has set the flag. These parameters move the source window, not the menu UI.</p>
 
-    <h3>csize Values (Platform Type)</h3>
-    <table>
-      <tr><th>Value</th><th>Platform</th><th>Description</th></tr>
-      <tr><td><code>0</code></td><td>TG16 / PC Engine</td><td>HuCard games</td></tr>
-      <tr><td><code>1</code></td><td>SuperGrafx</td><td>SuperGrafx-enhanced games</td></tr>
-      <tr><td><code>2</code></td><td>CD-ROM&sup2;</td><td>CD-ROM System games</td></tr>
-      <tr><td><code>3</code></td><td>Super CD-ROM&sup2;</td><td>Super System Card games</td></tr>
-      <tr><td><code>4</code></td><td>Arcade CD-ROM&sup2;</td><td>Arcade Card games</td></tr>
-    </table>
+    <h2 id="language-launch">Language Views and Launch Settings</h2>
+    <p><code>getLanguageIndexOffset()</code> selects the translated names and sorting fields:
+      0 or 100 for the language, plus 50 for the TG16 lineup. Most artwork/card settings and
+      the normal launch path use <code>getLinenpOffsetConfigData()</code> instead. That function
+      adds only the lineup offset (0 or 50) to the sorted item index.</p>
+    <p>Consequently, changing the language-view copy of <code>ScreenMode</code> at item
+      <code>i + 100</code> does not change a normal launch of item <code>i</code>.
+      The retail demo loop visits base items 0–99 directly and applies each selected item's
+      <code>demo_time</code>, <code>ScreenMode</code> and offsets. Preserve matching identities
+      across the two language views, but do not assume every duplicated field is a separate override.</p>
 
-    <h3>ccolor Values (Box Color)</h3>
-    <table>
-      <tr><th>Value</th><th>Color</th><th>Default for</th></tr>
-      <tr><td><code>0</code></td><td>White</td><td>TG16 / PC Engine (HuCard)</td></tr>
-      <tr><td><code>1</code></td><td>Yellow</td><td>CD-ROM games</td></tr>
-      <tr><td><code>2</code></td><td>Blue</td><td>(unused in originals)</td></tr>
-      <tr><td><code>3</code></td><td>Red</td><td>SuperGrafx</td></tr>
-    </table>
+    <h3 id="r-type">Practical Example: R-Type</h3>
+    <p>Retail item 61 is <code>GAME031</code> (R-Type) with <code>ScreenMode = 4</code> and zero offsets.
+      Its translated-view copy, item 161, contains mode 0. A normal launch still reads item 61,
+      including with an English or French UI, and therefore uses mode 4.</p>
+    <p>The stock TG16 core produces a 352 × 240 raster for R-Type's selected video clock.
+      Mode 4 shows 336 × 240 from X=8, removing eight columns at each side. The ROM itself can
+      program active widths of 336 or 320 pixels. When the active width is 320, eight border
+      columns on each side remain inside the 336-pixel display window.</p>
+    <p>The game's <code>title_prof</code> entry contains only <code>arch = "tg16"</code>,
+      <code>country = "us"</code>, <code>preamp = 1.0</code> and its ROM path. It has no special
+      <code>tg16_option</code>, <code>tg16_hblank</code> or <code>overdrive</code> override.
+      The observed framing comes from this menu crop and the ROM's hardware setup; no
+      R-Type-specific filename branch was found in the engine.</p>
 
-    <h2>DUMMY Entries</h2>
-    <p>
-      Unused slots (after the real games in each section) must be filled with DUMMY entries.
-      Here's the template from the original data:
-    </p>
+    <h2 id="dummy">DUMMY Entries</h2>
+    <p>Unused retail slots have the same 24 keys. Their <code>regionTag</code>, <code>name</code>
+      and <code>tname</code> are <code>"DUMMY"</code>, alternate tags are <code>"NO"</code>,
+      and each sort rank matches the slot's position within its 50-item section.
+      A representative template is:</p>
     <pre><code>{
-  "EmuOfsX": 0,
-  "EmuOfsY": 0,
-  "ScreenMode": 0,
-  "action": "Boot",
-  "ccolor": 0,
-  "copy": "",
-  "csize": 0,
-  "demo_time": 6180,
-  "desc": "",
-  "dev_name": "PceMini",
-  "image": <em>&lt;section_index&gt;</em>,
-  "name": "DUMMY",
-  "players": 1,             // Note: 1, not 0!
-  "regionTag": "DUMMY",
-  "regionTagE": "NO",
-  "regionTagS1": "NO",
-  "regionTagS2": "NO",
-  "sor_date": <em>&lt;section_index&gt;</em>,
-  "sor_demo": <em>&lt;section_index&gt;</em>,
-  "sor_genr": <em>&lt;section_index&gt;</em>,
-  "sor_name": <em>&lt;section_index&gt;</em>,
-  "sor_pnum": <em>&lt;section_index&gt;</em>,
-  "titlebar": 0,
-  "tname": "DUMMY"
+  "EmuOfsX": 0, "EmuOfsY": 0, "ScreenMode": 0,
+  "action": "Boot", "ccolor": 0, "copy": "", "csize": 0,
+  "demo_time": 6180, "desc": "", "dev_name": "PceMini",
+  "image": 34, "name": "DUMMY", "players": 1,
+  "regionTag": "DUMMY", "regionTagE": "NO",
+  "regionTagS1": "NO", "regionTagS2": "NO",
+  "sor_date": 34, "sor_demo": 34, "sor_genr": 34,
+  "sor_name": 34, "sor_pnum": 34,
+  "titlebar": 0, "tname": "DUMMY"
 }</code></pre>
+    <p>This example represents within-section slot 34. DUMMY player counts are observed data,
+      not proof that every field is required or that a different value inherently crashes the engine.</p>
 
-    <div class="box box-info">
-      <strong>DUMMY sor_* values</strong>
-      DUMMY entries' <code>sor_*</code> should be set to their position within the 50-item section
-      (0-49). This ensures they never reference an out-of-bounds index regardless of
-      <code>titleNum</code>/<code>titleNumTG</code> values.
-    </div>
-
-    <h2>Section Mirroring</h2>
-    <p>
-      The EN sections (100-149, 150-199) mirror their JP counterparts (0-49, 50-99)
-      with the same <code>regionTag</code>, <code>image</code>, <code>csize</code>, etc.
-      Only the display name differs:
-    </p>
-    <ul>
-      <li>Section 0-49: <code>tname = "THE 功夫"</code> (Japanese)</li>
-      <li>Section 100-149: <code>tname = "The Kung Fu"</code> (English)</li>
-    </ul>
-    <p>
-      The EN variants have <code>players: 0</code> in some original entries (used to indicate
-      they're display variants, not independent games).
-    </p>
-
-    <h2>Example: Minimal 5-Game Pack</h2>
-    <pre><code>{
-  "items": [
-    // [0-4]: 5 JP/PCE games with sor_* in range [0,4]
-    { "regionTag": "GAME100", "tname": "Game One",   "image": 0, "csize": 0, "sor_name": 0, "sor_date": 0, ... },
-    { "regionTag": "GAME101", "tname": "Game Two",   "image": 1, "csize": 0, "sor_name": 1, "sor_date": 1, ... },
-    { "regionTag": "GAME102", "tname": "Game Three", "image": 2, "csize": 0, "sor_name": 2, "sor_date": 2, ... },
-    { "regionTag": "GAME103", "tname": "Game Four",  "image": 3, "csize": 0, "sor_name": 3, "sor_date": 3, ... },
-    { "regionTag": "GAME104", "tname": "Game Five",  "image": 4, "csize": 0, "sor_name": 4, "sor_date": 4, ... },
-    // [5-49]: DUMMY entries with sor_* = section_index
-    { "regionTag": "DUMMY", "sor_name": 5, "sor_date": 5, ... },
-    { "regionTag": "DUMMY", "sor_name": 6, "sor_date": 6, ... },
-    ...
-    // [50-54]: 5 US/TG16 games (same pattern)
-    // [55-99]: DUMMY
-    // [100-104]: EN translations of JP games
-    // [105-149]: DUMMY
-    // [150-154]: EN translations of US games
-    // [155-199]: DUMMY
-  ],
-  "motion_basename": "title_grandmenu",
-  "motion_chara": "grandmenu",
-  "motion_label": "stand",
-  "scroll_frame": 10,
-  "scroll_variable": "gametitle_normal",
-  "titleNum": 5,
-  "titleNumTG": 5
-}</code></pre>
-
+    <h2 id="evidence">Evidence and Limits</h2>
+    <p><a href="evidence/screen-modes.json">Download the 63 native video-descriptor probe results (JSON)</a>.</p>
+    <p>Field consumers: <code>mode_title_select.nut</code>, especially
+      <code>getPkgIndex</code>, <code>getLinenpOffsetConfigData</code>,
+      <code>after_change_title</code>, <code>indexTableUpdate</code>,
+      <code>selectPkgUpdate</code> and <code>gameStart</code>;
+      <code>mode_demo.nut</code>, <code>exec</code>/<code>mode_demo</code>.
+      Crop results were checked with 63 native getter executions: modes 0–6, three raster widths,
+      all three cores, using radare2 ESIL and synthetic property callbacks with corrected TBB handling.
+      These checks establish descriptor values; they are not physical-console screenshots or a
+      guarantee that every arbitrary crop is useful for every game.</p>
   </main>
 </body>
 </html>

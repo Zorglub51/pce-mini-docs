@@ -51,7 +51,7 @@
     <p>
       The PC Engine Mini (Japan) / TurboGrafx-16 Mini (US) / CoreGrafx Mini (EU) is a miniature
       retro console released in 2020. It runs an ARM-based SoC with a custom emulator called
-      <code>m2engage</code>, built by M2 (the renowned Japanese developer known for pixel-perfect ports).
+      <code>m2engage</code>, built by M2.
     </p>
     <p>
       This documentation covers the internal file formats used by m2engage to define game lists,
@@ -59,9 +59,30 @@
       well enough to build custom game packs.
     </p>
 
+    <h2>Game Configuration Reference</h2>
+    <p>
+      Start with <a href="title-mode-top.html">title_mode_top</a> for the 24 per-item
+      menu fields, alternate game tags, demo timing and source-image cropping. Use
+      <a href="title-prof.html">title_prof</a> for core selection, controller protocol,
+      audio gain, run-ahead and hardware timing options. The references distinguish
+      settings that affect the PCE cores from fields that are retained, conditional
+      or read without a native effect.
+    </p>
+    <div class="box box-info">
+      <strong>Evidence and scope &mdash; October 2026 revision</strong>
+      Game-parameter findings combine the original package's PSB data, 117 verified
+      stock Squirrel sources, native ARM disassembly and targeted synthetic execution
+      probes. Native addresses refer to the examined m2engage binary, SHA-256
+      <code>b02848f66b82f8ac3090db523c4db9633508f9e3f53c7dc0ee3d01ce8aee8792</code>.
+      A setter's existence does not establish an effect in every core. Unresolved
+      behavior and conditional framework features are identified in the reference;
+      synthetic probes are not physical-console measurements.
+    </div>
+
     <h2>High-Level File Structure</h2>
     <p>
-      All game data lives under two directories, relative to the m2engage working directory:
+      The examined Japanese package uses these resource directories, relative to
+      the m2engage working directory:
     </p>
 
     <div class="diagram">
@@ -98,8 +119,9 @@
 
     <h2>The Four Key Files</h2>
     <p>
-      To create a custom game pack, you need to generate <strong>four PSB files</strong>.
-      Everything else can be copied from the originals unchanged:
+      A basic menu/ROM/cover replacement commonly changes these four PSBs. Additional
+      features or package identities can require other resources; these four files
+      are not a complete schema for every possible modification.
     </p>
 
     <div class="card-grid">
@@ -152,7 +174,7 @@
       </tr>
       <tr>
         <td>Items array size</td>
-        <td>Always 200 (50 per section &times; 4 sections)</td>
+        <td>200 in the examined stock menu (50 per section &times; 4 sections); the scripts use fixed section offsets</td>
       </tr>
       <tr>
         <td>Tool</td>

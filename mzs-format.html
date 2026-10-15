@@ -43,7 +43,7 @@
   <main>
     <h1>MZS / PSB Format</h1>
     <p class="page-desc">
-      The encryption wrapper and binary config format used by all m2engage data files.
+      The compression/encryption wrapper and binary resource format used by m2engage.
     </p>
 
     <h2>File Extension Convention</h2>
@@ -65,7 +65,7 @@
 
   +-----------+------------------------------------------+
   | <span class="highlight">Header</span>    | magic: "mzs\0" (4 bytes)                |
-  |           | compressed_size (4 bytes, little-endian)  |
+  |           | uncompressed_size (4 bytes, little-endian)  |
   +-----------+------------------------------------------+
   | <span class="hl-green">Payload</span>   | XOR-encrypted zstd-compressed data       |
   +-----------+------------------------------------------+
@@ -79,25 +79,28 @@
 
     <h3>XOR Cipher</h3>
     <p>
-      The encryption is a simple repeating XOR with a key derived from the filename:
+      The payload uses a repeating XOR buffer derived from the game key and the complete filename:
     </p>
-    <pre><code>Key base: "8!7ZZnJAr/wfc"
-Key length: 131 bytes (derived by repeating + hashing)
+    <pre><code>Game key: "8!7ZZnJAr/wfc"
+Filename: lowercase basename, including extensions (e.g. "title_prof.psb.m")
+Seed: MD5(UTF-8(game_key + filename))
+MT19937 seed words: four little-endian uint32 values from that digest
+XOR buffer: first 64 bytes of MT19937 output (little-endian uint32 words)
 
-For each byte at position i:
-  encrypted[i] = plain[i] ^ key[i % key_length]</code></pre>
+For each payload byte at position i:
+  encrypted[i] = compressed[i] ^ xor_buffer[i % 64]</code></pre>
 
     <div class="box box-warning">
       <strong>Filename matters!</strong>
-      The key derivation includes the filename (without extension). This means a file
+      The key derivation includes the complete lowercase basename, including <code>.psb.m</code> or <code>.nut.m</code>, but not its directory. This means a file
       encrypted as <code>title_mode_top.psb.m</code> cannot be decrypted if renamed to
-      <code>other_name.psb.m</code>. Always keep the original filename when extracting/building.
+      <code>other_name.psb.m</code>. Keep the intended filename when extracting/building, or repack the content under its new filename.
     </div>
 
     <h3>Zstandard Compression</h3>
     <p>
       After XOR decryption, the payload is a standard zstd-compressed blob.
-      Default compression level for building: 3.
+      The tool defaults to compression level 3; this is a tool setting, not a format requirement. The header records the decompressed byte count, not the compressed payload length.
       The magic bytes after decryption should be <code>0x28 0xB5 0x2F 0xFD</code> (zstd frame magic).
     </p>
 
@@ -112,30 +115,38 @@ For each byte at position i:
   Offset  Size  Description
   ──────  ────  ───────────
   0x00    4     Magic: "PSB\0"
-  0x04    4     Version (typically 3 or 4)
-  0x08    4     Flags / encryption marker
-  0x0C    4     String offsets table offset
-  0x10    4     String data offset
-  0x14    4     Resource offsets table offset
-  0x18    4     Resource data offset (chunk offsets)
-  0x1C    4     Resource data offset (chunk lengths)
-  0x20    4     Root object tree offset
-  0x24    4     Total resource data size
+  0x04    2     Version (uint16; commonly 3 or 4)
+  0x06    2     Flags (uint16)
+  0x08    4     Key offsets table offset (v1; legacy header field in v2+)
+  0x0C    4     Key-name trie/blob offset
+  0x10    4     String offsets table offset
+  0x14    4     String data offset
+  0x18    4     Resource/chunk offsets table offset
+  0x1C    4     Resource/chunk sizes table offset
+  0x20    4     Resource/chunk data base offset
+  0x24    4     Root object tree offset
+  0x28    4     Header Adler-32 checksum (v3+)
+  0x2C    4     B-stream offsets table offset (v4+)
+  0x30    4     B-stream sizes table offset (v4+)
+  0x34    4     B-stream data base offset (v4+)
     </div>
 
     <h3>PSB Value Types</h3>
     <table>
       <tr><th>Type ID</th><th>Type</th><th>Encoding</th></tr>
       <tr><td><code>0x01</code></td><td>null</td><td>No data</td></tr>
-      <tr><td><code>0x02</code></td><td>true</td><td>No data</td></tr>
-      <tr><td><code>0x03</code></td><td>false</td><td>No data</td></tr>
-      <tr><td><code>0x04</code></td><td>int (0 bytes)</td><td>Value is 0</td></tr>
-      <tr><td><code>0x05-0x0C</code></td><td>int (1-8 bytes)</td><td>Little-endian integer</td></tr>
-      <tr><td><code>0x0D-0x10</code></td><td>array</td><td>Count + element offsets + elements</td></tr>
-      <tr><td><code>0x15-0x18</code></td><td>string</td><td>Index into string table</td></tr>
-      <tr><td><code>0x19-0x1C</code></td><td>resource</td><td>Index into resource/chunk table</td></tr>
-      <tr><td><code>0x1D-0x20</code></td><td>float</td><td>IEEE 754 (0/32/64-bit)</td></tr>
-      <tr><td><code>0x21-0x24</code></td><td>object (dict)</td><td>Key indices + value offsets + values</td></tr>
+      <tr><td><code>0x02</code></td><td>false</td><td>No data</td></tr>
+      <tr><td><code>0x03</code></td><td>true</td><td>No data</td></tr>
+      <tr><td><code>0x04</code></td><td>integer zero</td><td>No payload bytes</td></tr>
+      <tr><td><code>0x05&ndash;0x0C</code></td><td>signed integer</td><td>1&ndash;8 little-endian bytes</td></tr>
+      <tr><td><code>0x0D&ndash;0x10</code></td><td>packed unsigned integer</td><td>1&ndash;4 bytes; used in index/count arrays</td></tr>
+      <tr><td><code>0x11&ndash;0x14</code></td><td>key reference</td><td>1&ndash;4-byte key-name index</td></tr>
+      <tr><td><code>0x15&ndash;0x18</code></td><td>string reference</td><td>1&ndash;4-byte string-table index</td></tr>
+      <tr><td><code>0x19&ndash;0x1C</code></td><td>resource reference</td><td>1&ndash;4-byte chunk-table index</td></tr>
+      <tr><td><code>0x1D</code>, <code>0x1E</code>, <code>0x1F</code></td><td>floating point</td><td>Zero, IEEE 754 float32, float64 respectively</td></tr>
+      <tr><td><code>0x20</code></td><td>array</td><td>Packed element offsets followed by values</td></tr>
+      <tr><td><code>0x21</code></td><td>object</td><td>Packed key indices and value offsets followed by values</td></tr>
+      <tr><td><code>0x22&ndash;0x25</code></td><td>B-stream reference (v4)</td><td>1&ndash;4-byte B-stream index</td></tr>
     </table>
 
     <h3>Resources / Textures</h3>
@@ -177,8 +188,7 @@ For each byte at position i:
 
     <h2>Round-Trip Fidelity</h2>
     <p>
-      The extract &rarr; build pipeline produces valid but <strong>not binary-identical</strong>
-      files. Differences include:
+      An extract &rarr; build round trip can preserve the decoded resource while producing <strong>different binary bytes</strong>. Differences can include:
     </p>
     <ul>
       <li>Different zstd compression output (different compressor version/settings)</li>
@@ -186,8 +196,7 @@ For each byte at position i:
       <li>XOR encryption is deterministic given the same input</li>
     </ul>
     <p>
-      Despite binary differences, round-tripped files are <strong>functionally equivalent</strong>
-      and work correctly with m2engage.
+      Verified configuration and motion round trips can be usable in m2engage, but successful JSON conversion alone does not prove compatibility. Check the rebuilt decoded values, embedded resource data, filename-derived key, and the resource types exercised by the engine.
     </p>
   </main>
 </body>
